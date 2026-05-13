@@ -52,6 +52,24 @@ Some MCP-capable clients expect OAuth discovery and Dynamic Client Registration-
 
 The MCP server still validates incoming requests as a resource server: bearer tokens are verified as Azure Entra JWTs, and API keys remain available for local development, automation, or simple private deployments.
 
+### Claude.ai DCR Compatibility Note
+
+As of 2026-05-13, Anthropic's public documentation and support materials indicate that remote MCP usage has two related but different patterns:
+
+- Claude.ai custom connectors can use OAuth-based remote MCP servers and support Dynamic Client Registration-style flows.
+- Anthropic's Messages API MCP connector can accept an `authorization_token` supplied by the API caller after the caller obtains a token through its own OAuth flow.
+
+This distinction matters for this project. The `/register`, `/authorize`, and `/token` routes are primarily included for MCP clients such as Claude.ai custom connectors that discover OAuth metadata and expect an MCP-compatible registration and authorization surface.
+
+Azure Entra ID does not dynamically create a new App Registration for every MCP client. This project therefore maps the client-facing DCR-style flow to a preconfigured Azure App Registration:
+
+- `/register` returns a synthetic client registration to the MCP client
+- `/authorize` maps that synthetic client to the configured Azure Entra App Registration and redirects the user to Azure Entra ID
+- `/token` proxies the authorization-code exchange to Azure Entra ID
+- `/mcp` remains the protected MCP resource endpoint and validates the resulting bearer token
+
+In other words, this project does not replace Azure Entra ID. It provides the MCP-facing OAuth compatibility layer that some clients expect, while delegating identity and token issuance to Azure Entra ID.
+
 ## Repository Layout
 
 ```text
