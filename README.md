@@ -11,7 +11,7 @@ Most MCP examples are intentionally tiny. That is great for learning the protoco
 This boilerplate packages those practical pieces into a small, readable template:
 
 - FastMCP tool definitions with FastAPI HTTP hosting
-- OAuth 2.0 resource server flow for Azure Entra ID
+- Azure Entra ID integration through a lightweight OAuth proxy
 - API key authentication for local development and automation
 - OAuth discovery endpoints for MCP-capable clients
 - Streamable HTTP mounting with path normalization
@@ -19,6 +19,21 @@ This boilerplate packages those practical pieces into a small, readable template
 - Docker and Compose support
 - Integration docs with screenshots for popular clients
 - Tests and GitHub Actions CI so forks start with a quality bar
+
+## Azure Entra ID and OAuth Proxy Scope
+
+The official MCP SDK examples are the best place to learn the core protocol mechanics, including OAuth flows, protected resource metadata, client registration, and token validation patterns.
+
+This boilerplate has a narrower practical focus: integrating an MCP server with Azure Entra ID while keeping the server easy to run, package, and extend.
+
+Some MCP-capable clients expect OAuth discovery and Dynamic Client Registration-style endpoints, while Azure Entra uses a static App Registration model. To bridge that gap, this project includes a lightweight OAuth proxy layer:
+
+- `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server` expose MCP-compatible discovery metadata
+- `/register` accepts client registration requests from MCP clients and maps them to the configured Azure App Registration
+- `/authorize` forwards the authorization request to Azure Entra ID with the expected scopes
+- `/token` exchanges authorization codes through Azure Entra ID and returns the resulting tokens to the client
+
+The MCP server still validates incoming requests as a resource server: bearer tokens are verified as Azure Entra JWTs, and API keys remain available for local development, automation, or simple private deployments.
 
 ## Repository Layout
 
