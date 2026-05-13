@@ -22,6 +22,20 @@ This boilerplate packages those practical pieces into a small template:
 - Integration docs with screenshots for popular clients
 - Tests and GitHub Actions CI so forks start with a quality bar
 
+## Multi-Client Authentication Concept
+
+The same MCP server can behave differently depending on the client connecting to it.
+
+Claude.ai, Copilot Studio, and Azure AI Foundry each have slightly different expectations around OAuth discovery, registration, redirect handling, and token flow.
+
+This repository experiments with a lightweight OAuth compatibility layer that bridges those client expectations with Azure Entra ID.
+
+> Conceptual illustration only — simplified for readability.
+
+![MCP Multi Client OAuth Concept](docs/assets/meme.png)
+
+This diagram intentionally simplifies the flow to highlight the client-compatibility problem rather than the full OAuth protocol details.
+
 ## How This Differs from Azure's Official Sample
 
 Microsoft provides [Azure-Samples/remote-mcp-webapp-python-auth-oauth](https://github.com/Azure-Samples/remote-mcp-webapp-python-auth-oauth), a full FastAPI MCP Weather Server sample with OAuth 2.1, PKCE, Dynamic Client Registration, Azure AD integration, a web test interface, and Azure App Service deployment through `azd`.
