@@ -134,6 +134,50 @@ RFC 8414: /.well-known/oauth-authorization-server
     ↑ NO jwks_uri and NO api:// scopes — prevents Entra detection (see below)
 ```
 
+### OAuth Proxy Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as MCP Client<br/>(Claude.ai / Copilot Studio)
+    participant S as MCP Server<br/>(FastAPI + OAuth Proxy)
+    participant D as DCR Store<br/>(in-memory by default)
+    participant E as Azure Entra ID
+    participant M as MCP Runtime<br/>(FastMCP)
+
+    C->>S: POST /mcp without token
+    S-->>C: 401 WWW-Authenticate<br/>resource_metadata=/.well-known/oauth-protected-resource
+
+    C->>S: GET /.well-known/oauth-protected-resource
+    S-->>C: resource + authorization_servers
+
+    C->>S: GET /.well-known/oauth-authorization-server
+    S-->>C: authorization_endpoint + token_endpoint + registration_endpoint
+
+    C->>S: POST /register<br/>redirect_uris + client_name
+    S->>D: Store synthetic client_id + redirect_uris
+    S-->>C: 201 client_id=dynamic-...<br/>token_endpoint_auth_method=none
+
+    C->>S: GET /authorize<br/>client_id=dynamic-... + PKCE + redirect_uri
+    S->>S: Map dynamic client_id to AZURE_CLIENT_ID<br/>inject api://.../access_as_user scope
+    S-->>C: 302 redirect to Azure Entra authorize URL
+
+    C->>E: User authenticates and grants consent
+    E-->>C: Redirect back to client callback with code + state
+
+    C->>S: POST /token<br/>code + code_verifier + dynamic client_id
+    S->>S: Replace dynamic client with AZURE_CLIENT_ID<br/>optionally inject AZURE_CLIENT_SECRET<br/>drop unsupported resource parameter
+    S->>E: POST /oauth2/v2.0/token
+    E-->>S: access_token + id_token + refresh_token
+    S-->>C: Token response
+
+    C->>S: POST /mcp<br/>Authorization: Bearer access_token
+    S->>S: Validate Azure Entra JWT<br/>set AuthContext
+    S->>M: Forward authenticated MCP request
+    M-->>S: Tool result
+    S-->>C: MCP response
+```
+
 ### RFC 7591 Dynamic Client Registration (DCR)
 
 Platforms such as Claude.ai and Copilot Studio require a server to support [RFC 7591 DCR](https://datatracker.ietf.org/doc/html/rfc7591) before they will initiate an OAuth flow. DCR allows the client to self-register and obtain credentials without manual configuration. The MCP spec mandates this for "Dynamic Discovery Authentication".
