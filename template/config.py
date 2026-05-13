@@ -9,6 +9,7 @@ API_KEYS = os.getenv("API_KEYS", "")
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "MCP Boilerplate")
 SERVICE_OWNER = os.getenv("SERVICE_OWNER", "Your Org")
+SERVICE_VERSION = os.getenv("SERVICE_VERSION", "1.0.0")
 
 AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
 AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "")

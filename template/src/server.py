@@ -59,3 +59,38 @@ async def ping(message: str = "ping") -> str:
     """Echo the message back with a server timestamp. Useful as a connectivity check."""
     ts = datetime.now(timezone.utc).isoformat()
     return f"pong: {message!r} at {ts}"
+
+
+@mcp.tool()
+async def server_profile() -> Dict[str, Any]:
+    """Return server metadata and extension hints for MCP clients."""
+    auth = get_auth()
+    auth_type = auth.auth_type if auth else "unknown"
+
+    return {
+        "service": {
+            "name": config.SERVICE_NAME,
+            "owner": config.SERVICE_OWNER,
+            "version": config.SERVICE_VERSION,
+            "base_url": config.BASE_URL.rstrip("/"),
+        },
+        "request": {
+            "auth_type": auth_type,
+            "user": {
+                "oid": auth.user_oid,
+                "name": auth.user_name,
+                "upn": auth.user_upn,
+            } if auth and auth.auth_type == "bearer" else None,
+        },
+        "endpoints": {
+            "mcp": "/mcp",
+            "health": "/health",
+            "oauth_protected_resource": "/.well-known/oauth-protected-resource",
+            "oauth_authorization_server": "/.well-known/oauth-authorization-server",
+        },
+        "extension_points": [
+            "Add business tools in src/server.py with @mcp.tool().",
+            "Use get_auth() to make tools aware of the authenticated caller.",
+            "Keep transport and authentication code inside src/http/.",
+        ],
+    }

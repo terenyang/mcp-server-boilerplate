@@ -1,7 +1,7 @@
 """FastAPI application — routers, middleware, lifespan."""
 import contextlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 import psutil
 from fastapi import FastAPI
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=config.SERVICE_NAME,
     description="MCP Server boilerplate — OAuth2 + API key auth",
-    version="1.0.0",
+    version=config.SERVICE_VERSION,
     lifespan=lifespan,
 )
 
@@ -64,7 +64,7 @@ async def root():
     return JSONResponse({
         "service": config.SERVICE_NAME,
         "owner": config.SERVICE_OWNER,
-        "version": "1.0.0",
+        "version": config.SERVICE_VERSION,
         "docs": "/docs",
         "health": "/health",
         "mcp": "/mcp",
@@ -79,7 +79,8 @@ async def health():
     return JSONResponse({
         "status": "healthy",
         "service": config.SERVICE_NAME,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "version": config.SERVICE_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "metrics": {
             "mcp": {
                 "active_streams": _guarded_mcp._active_streams,
