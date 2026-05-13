@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Server Template — Architecture</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Slide container ── */
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 56px 72px 40px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .slide.active {
+    display: flex;
+    opacity: 1;
+  }
+
+  /* ── Typography ── */
+  h1 { font-size: 2.6rem; font-weight: 700; line-height: 1.15; }
+  h2 { font-size: 1.75rem; font-weight: 600; color: #58a6ff; margin-bottom: 28px; border-bottom: 1px solid #21262d; padding-bottom: 12px; }
+  h3 { font-size: 1.1rem; font-weight: 600; color: #58a6ff; margin-bottom: 10px; }
+  p  { font-size: 1rem; line-height: 1.65; color: #8b949e; }
+
+  .subtitle { font-size: 1.2rem; color: #8b949e; margin-top: 14px; }
+  .tag {
+    display: inline-block;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 0.85rem;
+    color: #58a6ff;
+    margin: 6px 4px 0;
+  }
+
+  /* ── Code / diagram blocks ── */
+  pre, code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+  }
+
+  pre {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    padding: 18px 22px;
+    line-height: 1.6;
+    overflow: auto;
+    flex: 1;
+  }
+
+  code {
+    background: #21262d;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.85em;
+    color: #79c0ff;
+  }
+
+  /* Syntax colours inside <pre> */
+  .c  { color: #8b949e; }   /* comment  */
+  .k  { color: #ff7b72; }   /* keyword  */
+  .s  { color: #a5d6ff; }   /* string   */
+  .n  { color: #79c0ff; }   /* name     */
+  .o  { color: #e3b341; }   /* operator */
+  .g  { color: #3fb950; }   /* green    */
+  .p  { color: #d2a8ff; }   /* purple   */
+  .dim { color: #484f58; }  /* dim      */
+
+  /* ── Layout helpers ── */
+  .row   { display: flex; gap: 24px; flex: 1; min-height: 0; }
+  .col   { display: flex; flex-direction: column; flex: 1; gap: 16px; }
+  .col-2 { flex: 2; }
+  .spacer { flex: 1; }
+
+  .card {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 10px;
+    padding: 20px 22px;
+  }
+
+  .card.green  { border-left: 3px solid #3fb950; }
+  .card.blue   { border-left: 3px solid #58a6ff; }
+  .card.orange { border-left: 3px solid #e3b341; }
+  .card.purple { border-left: 3px solid #d2a8ff; }
+
+  ul { list-style: none; padding: 0; }
+  li { padding: 5px 0 5px 18px; position: relative; color: #8b949e; font-size: 0.95rem; line-height: 1.5; }
+  li::before { content: '›'; position: absolute; left: 0; color: #58a6ff; }
+  li strong { color: #e6edf3; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th { background: #21262d; padding: 10px 14px; text-align: left; color: #58a6ff; font-weight: 600; border-bottom: 1px solid #30363d; }
+  td { padding: 9px 14px; border-bottom: 1px solid #21262d; color: #8b949e; vertical-align: top; }
+  td:first-child { color: #e6edf3; font-family: monospace; font-size: 0.85rem; }
+  tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .badge.green  { background: #1a3a1a; color: #3fb950; }
+  .badge.blue   { background: #1a2a3a; color: #58a6ff; }
+  .badge.orange { background: #3a2a1a; color: #e3b341; }
+
+  /* ── Title slide ── */
+  .title-slide { justify-content: center; align-items: flex-start; gap: 0; }
+  .title-slide h1 { font-size: 3rem; }
+  .title-accent { color: #58a6ff; }
+
+  .logo-row { display: flex; gap: 10px; margin-top: 32px; flex-wrap: wrap; }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    background: #0d1117;
+    border-top: 1px solid #21262d;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #8b949e;
+    padding: 6px 18px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+  }
+  .nav button:hover { background: #30363d; color: #e6edf3; }
+  .nav button:disabled { opacity: 0.3; cursor: default; }
+
+  .slide-counter { color: #484f58; font-size: 0.85rem; font-family: monospace; }
+
+  /* ── Diagram arrow lines ── */
+  .arrow { color: #58a6ff; }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 0.88rem;
+  }
+  .flow-box {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 6px 14px;
+    white-space: nowrap;
+    color: #e6edf3;
+  }
+  .flow-box.blue   { border-color: #58a6ff; color: #58a6ff; }
+  .flow-box.green  { border-color: #3fb950; color: #3fb950; }
+  .flow-box.orange { border-color: #e3b341; color: #e3b341; }
+  .flow-box.purple { border-color: #d2a8ff; color: #d2a8ff; }
+  .flow-arrow { color: #484f58; font-size: 1.1rem; }
+
+  .note {
+    background: #1a2a1a;
+    border: 1px solid #2a4a2a;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #8b949e;
+    margin-top: 10px;
+  }
+  .note strong { color: #3fb950; }
+
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+  <!-- ═══════════════════════════════ SLIDE 1 — Title ═══════════════════════════════ -->
+  <div class="slide title-slide active" id="s1">
+    <h1>MCP Server<br><span class="title-accent">Boilerplate</span></h1>
+    <p class="subtitle">A production-ready template for building Model Context Protocol servers<br>
+    with dual authentication — OAuth 2.0 (Azure Entra) and API Key</p>
+
+    <div class="logo-row">
+      <span class="tag">Python 3.10+</span>
+      <span class="tag">FastMCP</span>
+      <span class="tag">FastAPI</span>
+      <span class="tag">OAuth 2.1</span>
+      <span class="tag">RFC 7591 DCR</span>
+      <span class="tag">Azure Entra</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="row" style="flex: 0; gap: 16px; margin-top: 40px;">
+      <div class="card green" style="flex:1">
+        <h3>Two Auth Schemes</h3>
+        <p>Bearer JWT (OAuth 2.0) for interactive users<br>API Key for server-to-server calls</p>
+      </div>
+      <div class="card blue" style="flex:1">
+        <h3>MCP Compliant</h3>
+        <p>RFC 9728 · RFC 8414 · RFC 7591<br>Streamable HTTP transport</p>
+      </div>
+      <div class="card orange" style="flex:1">
+        <h3>Drop-in Template</h3>
+        <p>Add your tools in <code>src/server.py</code><br>Auth &amp; discovery wired out of the box</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 2 — Overview ═══════════════════════════════ -->
+  <div class="slide" id="s2">
+    <h2>Architecture Overview</h2>
+    <div class="row">
+      <div class="col col-2">
+        <pre><span class="c">┌─────────────────────────────────────────────────────────────┐
+│                      HTTP Request                           │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
+              ┌───────────────▼───────────────┐
+              │    AuthenticationMiddleware    │  <span class="c">← runs first (outermost)</span>
+              │   (raw ASGI — not BaseHTTP)    │
+              │                               │
+              │  Bearer JWT  │  x-api-key     │
+              └───────────────┬───────────────┘
+                              │
+              ┌───────────────▼───────────────┐
+              │      MCPPathMiddleware         │  <span class="c">← /mcp → /mcp/ rewrite</span>
+              └───────────────┬───────────────┘
+                              │
+              ┌───────────────▼───────────────┐
+              │         FastAPI Router         │
+              │                               │
+              │  /.well-known/*  (discovery)  │
+              │  /register /authorize /token  │  <span class="c">← OAuth proxy</span>
+              │  /  /health                   │  <span class="c">← public</span>
+              │  /mcp  ──► FastMCP            │  <span class="c">← tools (auth required)</span>
+              └───────────────────────────────┘</span></pre>
+      </div>
+      <div class="col">
+        <div class="card blue">
+          <h3>Key Files</h3>
+          <ul>
+            <li><strong>src/http/middleware/auth.py</strong><br>Auth gate — JWT or API key</li>
+            <li><strong>src/http/middleware/jwt.py</strong><br>Entra token validation</li>
+            <li><strong>src/http/oauth_proxy.py</strong><br>DCR + authorize + token proxy</li>
+            <li><strong>src/http/well_known.py</strong><br>RFC 8414 / RFC 9728 endpoints</li>
+            <li><strong>src/server.py</strong><br>FastMCP + your MCP tools</li>
+            <li><strong>src/auth_context.py</strong><br>AuthContext via contextvars</li>
+          </ul>
+        </div>
+        <div class="note">
+          <strong>Why raw ASGI?</strong> BaseHTTPMiddleware wraps responses in a new task,
+          breaking contextvars propagation through FastMCP's streaming transport.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 3 — Auth Schemes ═══════════════════════════════ -->
+  <div class="slide" id="s3">
+    <h2>Two Authentication Schemes</h2>
+    <div class="row">
+
+      <div class="col">
+        <div class="card green">
+          <h3>① API Key</h3>
+          <p style="margin-bottom:12px">Simple header-based auth. No Azure setup required.</p>
+          <pre style="flex:0; font-size:0.78rem"><span class="c"># Request</span>
+<span class="n">POST</span> /mcp
+<span class="s">x-api-key: your-secret-key</span>
+
+<span class="c"># .env</span>
+<span class="n">API_KEYS</span>=key-one,key-two</pre>
+        </div>
+        <div class="card" style="margin-top:0">
+          <h3>Use case</h3>
+          <ul>
+            <li><strong>Server-to-server</strong> integration</li>
+            <li><strong>Local development</strong> without Azure</li>
+            <li><strong>CI/CD pipelines</strong> and scripts</li>
+          </ul>
+          <div class="note" style="margin-top:12px">
+            Auth context: <code>auth_type = "api_key"</code><br>
+            No user identity — <code>user_oid</code> is <code>None</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card blue">
+          <h3>② OAuth 2.0 Bearer Token</h3>
+          <p style="margin-bottom:12px">Azure Entra JWT — full user identity in every request.</p>
+          <pre style="flex:0; font-size:0.78rem"><span class="c"># Request</span>
+<span class="n">POST</span> /mcp
+<span class="s">Authorization: Bearer eyJ0eXAiOiJKV1Q...</span>
+
+<span class="c"># Token claims (decoded)</span>
+{
+  <span class="s">"aud"</span>: <span class="s">"api://&lt;AZURE_CLIENT_ID&gt;"</span>,
+  <span class="s">"oid"</span>: <span class="s">"b6167420-..."</span>,  <span class="c">← user object ID</span>
+  <span class="s">"scp"</span>: <span class="s">"access_as_user"</span>,
+  <span class="s">"name"</span>: <span class="s">"Xindong Yang"</span>
+}</pre>
+        </div>
+        <div class="card" style="margin-top:0">
+          <h3>Use case</h3>
+          <ul>
+            <li><strong>Claude.ai / Claude Desktop</strong> users</li>
+            <li><strong>Copilot Studio</strong> connectors</li>
+            <li><strong>Any OAuth 2.1 client</strong></li>
+          </ul>
+          <div class="note" style="margin-top:12px">
+            Auth context: <code>auth_type = "bearer"</code><br>
+            <code>user_oid</code> · <code>user_name</code> · <code>user_upn</code> all populated
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 4 — Auth Middleware Detail ═══════════════════════════════ -->
+  <div class="slide" id="s4">
+    <h2>Authentication Middleware — Decision Flow</h2>
+    <div class="row">
+      <div class="col col-2">
+        <pre><span class="k">class</span> <span class="n">AuthenticationMiddleware</span>:
+
+  <span class="k">async def</span> <span class="n">__call__</span>(scope, receive, send):
+
+    <span class="c"># 1. Exempt paths — bypass auth entirely</span>
+    <span class="k">if</span> path <span class="k">in</span> {<span class="s">"/"</span>, <span class="s">"/health"</span>} <span class="k">or</span>
+       path.startswith(<span class="s">"/.well-known/"</span>, <span class="s">"/docs"</span>,
+                       <span class="s">"/register"</span>, <span class="s">"/authorize"</span>, <span class="s">"/token"</span>):
+        <span class="k">await</span> next_app()
+        <span class="k">return</span>
+
+    <span class="c"># 2. Try Bearer token first</span>
+    <span class="k">if</span> header.startswith(<span class="s">"Bearer "</span>):
+        user_oid, name, upn = <span class="k">await</span> jwt.authenticate(token)
+        set_auth(AuthContext(<span class="n">auth_type</span>=<span class="s">"bearer"</span>, ...))
+        <span class="k">await</span> next_app()          <span class="c">← ✅ pass through</span>
+
+    <span class="c"># 3. Fallback: x-api-key</span>
+    <span class="k">elif</span> api_key:
+        ensure_valid_api_key(api_key)
+        set_auth(AuthContext(<span class="n">auth_type</span>=<span class="s">"api_key"</span>))
+        <span class="k">await</span> next_app()          <span class="c">← ✅ pass through</span>
+
+    <span class="c"># 4. No credentials → 401</span>
+    <span class="k">else</span>:
+        <span class="k">return</span> 401 + WWW-Authenticate: Bearer
+                   resource_metadata=<span class="s">".../.well-known/..."</span></pre>
+      </div>
+      <div class="col">
+        <div class="card green">
+          <h3>AuthContext — propagated via contextvars</h3>
+          <pre style="flex:0; font-size:0.78rem"><span class="k">@dataclass</span>
+<span class="k">class</span> <span class="n">AuthContext</span>:
+    auth_type: str   <span class="c"># "bearer"|"api_key"</span>
+    user_oid:  str | None
+    user_name: str | None
+    user_upn:  str | None</pre>
+        </div>
+        <div class="card blue" style="margin-top:0">
+          <h3>Access in MCP tools</h3>
+          <pre style="flex:0; font-size:0.78rem"><span class="k">from</span> src.auth_context <span class="k">import</span> get_auth
+
+<span class="o">@mcp.tool()</span>
+<span class="k">async def</span> <span class="n">whoami</span>():
+    auth = get_auth()   <span class="c">← no arg passing needed</span>
+    <span class="k">if</span> auth.auth_type == <span class="s">"bearer"</span>:
+        <span class="k">return</span> auth.user_name
+    <span class="k">return</span> <span class="s">"API key user"</span></pre>
+        </div>
+        <div class="note">
+          contextvars propagate through <code>await</code> chains and <code>asyncio.create_task</code>,
+          so a value set in middleware is visible inside FastMCP tool handlers automatically.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 5 — OAuth Discovery ═══════════════════════════════ -->
+  <div class="slide" id="s5">
+    <h2>OAuth 2.0 — Auto-Discovery Chain</h2>
+    <p style="margin-bottom:20px; color:#8b949e">Clients discover all OAuth endpoints automatically. No manual configuration needed.</p>
+    <div class="row">
+      <div class="col col-2">
+        <pre><span class="c">Step 1 — Client hits /mcp without a token</span>
+<span class="dim">─────────────────────────────────────────────</span>
+<span class="n">POST</span> /mcp  (no token)
+  <span class="o">←</span> 401 WWW-Authenticate: Bearer
+           resource_metadata=<span class="s">"https://host/.well-known/
+                               oauth-protected-resource"</span>
+
+<span class="c">Step 2 — Client fetches RFC 9728 metadata</span>
+<span class="dim">─────────────────────────────────────────────</span>
+<span class="n">GET</span> /.well-known/oauth-protected-resource
+  <span class="o">←</span> {
+      <span class="s">"resource"</span>:             <span class="s">"https://host/mcp"</span>,
+      <span class="s">"authorization_servers"</span>: [<span class="s">"https://host"</span>]  <span class="c">← our proxy, NOT Entra</span>
+    }
+
+<span class="c">Step 3 — Client fetches RFC 8414 AS metadata</span>
+<span class="dim">─────────────────────────────────────────────</span>
+<span class="n">GET</span> /.well-known/oauth-authorization-server
+  <span class="o">←</span> {
+      <span class="s">"issuer"</span>:                 <span class="s">"https://host"</span>,     <span class="c">← MUST match fetch origin</span>
+      <span class="s">"authorization_endpoint"</span>: <span class="s">"https://host/authorize"</span>,
+      <span class="s">"token_endpoint"</span>:         <span class="s">"https://host/token"</span>,
+      <span class="s">"registration_endpoint"</span>:  <span class="s">"https://host/register"</span>
+    }
+
+<span class="c">Step 4 — Client proceeds with OAuth flow</span></pre>
+      </div>
+      <div class="col">
+        <div class="card orange">
+          <h3>Why issuer = our server, not Entra?</h3>
+          <p>If <code>issuer</code> pointed to Entra, Claude would detect the mismatch between our AS metadata and Entra's, reject our proxy, and call Entra directly — sending a <code>resource</code> parameter that Entra v2 rejects (<strong>AADSTS9010010</strong>).</p>
+        </div>
+        <div class="card purple" style="margin-top:0">
+          <h3>Why is <code>api://xxx/access_as_user</code> hidden?</h3>
+          <p>If this Azure-specific scope appeared in <code>scopes_supported</code>, clients would detect the Entra pattern and bypass our proxy. The proxy injects it silently at <code>/authorize</code>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 6 — OAuth Proxy ═══════════════════════════════ -->
+  <div class="slide" id="s6">
+    <h2>OAuth 2.0 Proxy — Azure Entra Bridge</h2>
+    <p style="margin-bottom: 18px; color:#8b949e">Azure Entra doesn't support RFC 7591 DCR. The proxy bridges this gap.</p>
+    <div class="row">
+      <div class="col col-2">
+        <pre><span class="c">① POST /register  (RFC 7591 DCR)</span>
+   Client → {redirect_uris, client_name, grant_types}
+   Server → {<span class="g">client_id: "dynamic-xxxx"</span>, token_endpoint_auth_method: "none"}
+            <span class="c">└ stored in _registered_clients{} (in-memory)</span>
+
+<span class="c">② GET /authorize</span>
+   Client → ?client_id=<span class="k">dynamic-xxxx</span>&scope=openid+profile
+             &code_challenge=...&redirect_uri=...
+
+   Proxy  → <span class="o">swap</span> client_id → <span class="g">AZURE_CLIENT_ID</span>
+          → <span class="o">inject</span> scope: <span class="g">api://xxx/access_as_user</span> + offline_access
+          → <span class="o">drop</span>  resource param  <span class="c">(Entra v2 rejects it)</span>
+          → 302 Entra /oauth2/v2.0/authorize
+
+<span class="c">③ User logs in at Entra → code returned to redirect_uri</span>
+
+<span class="c">④ POST /token</span>
+   Client → {grant_type=authorization_code, code=xxx,
+              code_verifier=..., client_id=<span class="k">dynamic-xxxx</span>}
+
+   Proxy  → <span class="o">swap</span> client_id     → <span class="g">AZURE_CLIENT_ID</span>
+          → <span class="o">swap</span> client_secret  → <span class="g">AZURE_CLIENT_SECRET</span>
+          → <span class="o">drop</span> resource param
+          → forward to Entra /oauth2/v2.0/token
+
+<span class="c">⑤ Entra → {access_token, id_token, refresh_token}</span>
+   access_token.aud = <span class="g">"api://AZURE_CLIENT_ID"</span>  ✓</pre>
+      </div>
+      <div class="col">
+        <div class="card green">
+          <h3>What clients see</h3>
+          <ul>
+            <li>A generic OAuth 2.1 server</li>
+            <li>Standard DCR endpoint</li>
+            <li>No Azure-specific scopes</li>
+            <li>No Entra URLs visible</li>
+          </ul>
+        </div>
+        <div class="card blue" style="margin-top:0">
+          <h3>What Entra sees</h3>
+          <ul>
+            <li>Real <strong>AZURE_CLIENT_ID</strong></li>
+            <li>Real <strong>AZURE_CLIENT_SECRET</strong></li>
+            <li>Correct <strong>api:// scope</strong></li>
+            <li>No <code>resource</code> parameter</li>
+          </ul>
+        </div>
+        <div class="card orange" style="margin-top:0">
+          <h3>scope is optional at /authorize</h3>
+          <p>Some clients (Copilot Studio) omit <code>scope</code>. The proxy always injects the required <code>api://</code> scope regardless, starting from an empty set if needed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 7 — JWT Validation ═══════════════════════════════ -->
+  <div class="slide" id="s7">
+    <h2>JWT Token Validation (Resource Server Role)</h2>
+    <div class="row">
+      <div class="col">
+        <pre><span class="k">async def</span> authenticate(token: str):
+
+    <span class="c"># 1. Extract kid from token header</span>
+    kid = jwt.get_unverified_header(token)[<span class="s">"kid"</span>]
+
+    <span class="c"># 2. Fetch Entra JWKS  (cached 1 hour)</span>
+    jwk = fetch_from_entra_jwks(kid)
+    public_key = rsa_pem_from_jwk(jwk)
+
+    <span class="c"># 3. Verify signature + audience + expiry</span>
+    payload = jwt.decode(
+        token, public_key,
+        algorithms=[<span class="s">"RS256"</span>],
+        audience=valid_audiences,    <span class="c">← see table →</span>
+        options={<span class="s">"verify_exp"</span>: True}
+    )
+
+    <span class="c"># 4. Manual issuer check  (v1 + v2 tokens)</span>
+    <span class="k">if</span> payload[<span class="s">"iss"</span>] <span class="k">not in</span> valid_issuers:
+        <span class="k">raise</span> InvalidIssuerError
+
+    <span class="c"># 5. Require oid claim</span>
+    user_oid = payload[<span class="s">"oid"</span>]           <span class="c">← user identity</span>
+
+    <span class="k">return</span> user_oid, payload.get(<span class="s">"name"</span>), payload.get(<span class="s">"upn"</span>)</pre>
+      </div>
+      <div class="col">
+        <div class="card blue">
+          <h3>Accepted Audiences</h3>
+          <table>
+            <tr><th>Value</th><th>Token type</th></tr>
+            <tr><td>api://{CLIENT_ID}</td><td>Standard App ID URI</td></tr>
+            <tr><td>{CLIENT_ID}</td><td>Raw GUID (id tokens)</td></tr>
+            <tr><td>{BASE_URL}</td><td>RFC 8707 resource URI</td></tr>
+          </table>
+        </div>
+        <div class="card green" style="margin-top:0">
+          <h3>Accepted Issuers</h3>
+          <table>
+            <tr><th>Issuer URL</th><th>For</th></tr>
+            <tr><td>login.microsoftonline.com/…/v2.0</td><td>User tokens</td></tr>
+            <tr><td>sts.windows.net/…/</td><td>App/service tokens</td></tr>
+          </table>
+        </div>
+        <div class="card orange" style="margin-top:0">
+          <h3>Error codes</h3>
+          <table>
+            <tr><th>Exception</th><th>HTTP</th></tr>
+            <tr><td>ExpiredSignatureError</td><td>401</td></tr>
+            <tr><td>InvalidAudienceError</td><td>403</td></tr>
+            <tr><td>InvalidIssuerError</td><td>403</td></tr>
+            <tr><td>InvalidTokenError</td><td>401</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 8 — Stream Guard ═══════════════════════════════ -->
+  <div class="slide" id="s8">
+    <h2>Stream Concurrency Control</h2>
+    <p style="margin-bottom:20px; color:#8b949e">Each MCP tool call holds a streaming HTTP connection open. The <code>StreamConcurrencyController</code> prevents resource exhaustion.</p>
+    <div class="row">
+      <div class="col">
+        <pre><span class="c">Incoming request</span>
+        │
+        ▼
+<span class="g">Semaphore.acquire(timeout=QUEUE_WAIT_TIMEOUT)</span>
+        │
+   ┌────┴─────────────────────────────────┐
+   │ Timeout?  →  <span class="k">429 Too Many Requests</span>  │
+   │              Retry-After: {timeout}  │
+   └────┬─────────────────────────────────┘
+        │ acquired
+        ▼
+<span class="n">asyncio.create_task(app_runner)</span>
+        │
+        ├── <span class="n">idle_watchdog</span>: cancel if no bytes sent for <span class="o">IDLE_STREAM_TIMEOUT</span>
+        └── <span class="n">hard_watchdog</span>: cancel after <span class="o">HARD_STREAM_TIMEOUT</span> regardless
+              │
+        CancelledError → <span class="k">503 Service Unavailable</span>
+              │
+        finally: Semaphore.release()</pre>
+      </div>
+      <div class="col">
+        <div class="card blue">
+          <h3>Configuration</h3>
+          <table>
+            <tr><th>Variable</th><th>Default</th><th>Effect</th></tr>
+            <tr><td>MAX_CONCURRENT_STREAMS</td><td>20</td><td>Semaphore size</td></tr>
+            <tr><td>QUEUE_WAIT_TIMEOUT</td><td>5 s</td><td>Wait before 429</td></tr>
+            <tr><td>HARD_STREAM_TIMEOUT</td><td>300 s</td><td>Max request life</td></tr>
+            <tr><td>IDLE_STREAM_TIMEOUT</td><td>60 s</td><td>Max silence</td></tr>
+          </table>
+        </div>
+        <div class="card green" style="margin-top:0">
+          <h3>Health endpoint exposes live metrics</h3>
+          <pre style="flex:0; font-size:0.78rem">GET /health  →
+{
+  "mcp": {
+    "active_streams": 3,
+    "max_streams": 20
+  }
+}</pre>
+        </div>
+        <div class="note">
+          MCP streams can be long-lived (seconds to minutes). Without limits, one busy burst could exhaust memory or downstream DB connections.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SLIDE 9 — Getting Started ═══════════════════════════════ -->
+  <div class="slide" id="s9">
+    <h2>Getting Started</h2>
+    <div class="row">
+      <div class="col">
+        <div class="card green">
+          <h3>① Configure .env</h3>
+          <pre style="flex:0; font-size:0.78rem"><span class="c"># Required</span>
+BASE_URL=https://your-host.com
+API_KEYS=your-secret-key
+
+<span class="c"># Azure Entra (OAuth2)</span>
+AZURE_TENANT_ID=&lt;tenant-id&gt;
+AZURE_CLIENT_ID=&lt;app-registration-id&gt;
+AZURE_CLIENT_SECRET=&lt;client-secret&gt;
+
+<span class="c"># Optional tuning</span>
+MAX_CONCURRENT_STREAMS=20</pre>
+        </div>
+        <div class="card blue" style="margin-top:0">
+          <h3>② Add your tools in src/server.py</h3>
+          <pre style="flex:0; font-size:0.78rem"><span class="o">@mcp.tool()</span>
+<span class="k">async def</span> <span class="n">my_tool</span>(param: str) -> str:
+    <span class="s">"""Tool description shown to the LLM."""</span>
+    auth = get_auth()
+    <span class="c"># auth.auth_type, auth.user_oid, etc.</span>
+    <span class="k">return</span> <span class="s">"result"</span></pre>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card orange">
+          <h3>③ Azure App Registration</h3>
+          <table>
+            <tr><th>Setting</th><th>Value</th></tr>
+            <tr><td>Redirect URI (Web)</td><td>https://claude.ai/api/mcp/auth_callback</td></tr>
+            <tr><td>Redirect URI (Desktop)</td><td>http://localhost</td></tr>
+            <tr><td>Expose an API scope</td><td>access_as_user</td></tr>
+            <tr><td>Client secret</td><td>→ AZURE_CLIENT_SECRET</td></tr>
+          </table>
+        </div>
+        <div class="card purple" style="margin-top:0">
+          <h3>④ Run</h3>
+          <pre style="flex:0; font-size:0.78rem"><span class="c"># Local dev</span>
+uv sync
+python dev.py
+
+<span class="c"># Docker</span>
+docker-compose up -d
+
+<span class="c"># Health check</span>
+curl http://localhost:8080/health</pre>
+        </div>
+        <div class="note">
+          <strong>API-key-only mode:</strong> leave <code>AZURE_TENANT_ID</code> and <code>AZURE_CLIENT_ID</code> blank.
+          OAuth endpoints remain mounted but inactive.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.deck -->
+
+<!-- ── Navigation ── -->
+<div class="nav">
+  <button id="btn-prev" onclick="go(-1)" disabled>← Prev</button>
+  <span class="slide-counter" id="counter">1 / 9</span>
+  <button id="btn-next" onclick="go(1)">Next →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let cur = 0;
+
+  function show(n) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(total - 1, n));
+    slides[cur].classList.add('active');
+    document.getElementById('counter').textContent = `${cur + 1} / ${total}`;
+    document.getElementById('btn-prev').disabled = (cur === 0);
+    document.getElementById('btn-next').disabled = (cur === total - 1);
+  }
+
+  function go(delta) { show(cur + delta); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown'  || e.key === ' ') go(+1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                      go(-1);
+  });
+</script>
+
+</body>
+</html>
