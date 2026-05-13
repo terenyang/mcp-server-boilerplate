@@ -142,16 +142,85 @@ The GitHub Actions workflow runs the same test command on every push and pull re
 
 ## Architecture
 
-```text
-HTTP Request
-  -> AuthenticationMiddleware       JWT or x-api-key; sets AuthContext via ContextVar
-  -> MCPPathMiddleware              /mcp -> /mcp/ rewrite
-  -> FastAPI router
-       ├── /                        service metadata
-       ├── /health                  health and runtime metrics
-       ├── /.well-known/*           OAuth discovery
-       ├── /register /authorize /token
-       └── /mcp                     FastMCP streamable HTTP
+This boilerplate is organized around a small but production-oriented request path: public OAuth discovery, authentication middleware, FastMCP streamable HTTP transport, and extensible tool handlers.
+
+```mermaid
+flowchart LR
+    subgraph Clients["MCP Clients"]
+        Claude["Claude / Claude Desktop"]
+        Copilot["Copilot Studio"]
+        AzureAI["Azure AI Foundry"]
+        S2S["Server-to-Server Client"]
+    end
+
+    subgraph Discovery["OAuth Discovery & Proxy"]
+        WellKnown["/.well-known/*"]
+        Register["/register"]
+        Authorize["/authorize"]
+        Token["/token"]
+    end
+
+    subgraph Auth["Authentication"]
+        AuthMW["AuthenticationMiddleware"]
+        JWT["JWT Bearer<br/>Azure Entra ID"]
+        APIKey["API Key<br/>x-api-key"]
+        Context["AuthContext<br/>ContextVar"]
+    end
+
+    subgraph MCPRuntime["MCP Runtime"]
+        MCP["/mcp<br/>Streamable HTTP"]
+        PathMW["MCPPathMiddleware"]
+        StreamCtrl["StreamConcurrencyController"]
+        FastMCP["FastMCP Server"]
+    end
+
+    subgraph Tools["Tool Layer"]
+        BuiltIn["Built-in Tools<br/>whoami / ping / server_profile"]
+        Custom["Custom Business Tools"]
+    end
+
+    subgraph Systems["Enterprise Systems"]
+        ITSM["ITSM"]
+        CMDB["CMDB"]
+        KB["Knowledge Base / RAG"]
+        Monitoring["Monitoring"]
+        APIs["Internal APIs"]
+    end
+
+    Entra["Azure Entra ID"]
+
+    Claude --> WellKnown
+    Copilot --> WellKnown
+    AzureAI --> WellKnown
+
+    WellKnown --> Register
+    Register --> Authorize
+    Authorize --> Entra
+    Token --> Entra
+
+    Claude --> MCP
+    Copilot --> MCP
+    AzureAI --> MCP
+    S2S --> MCP
+
+    MCP --> AuthMW
+    AuthMW --> JWT
+    AuthMW --> APIKey
+    JWT --> Context
+    APIKey --> Context
+
+    Context --> PathMW
+    PathMW --> StreamCtrl
+    StreamCtrl --> FastMCP
+
+    FastMCP --> BuiltIn
+    FastMCP --> Custom
+
+    Custom --> ITSM
+    Custom --> CMDB
+    Custom --> KB
+    Custom --> Monitoring
+    Custom --> APIs
 ```
 
 ## Roadmap Ideas
