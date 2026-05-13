@@ -1,14 +1,16 @@
-# Production-Ready MCP Server Boilerplate
+# Practical MCP Server Boilerplate for Azure Entra Integration
 
-An opinionated Python template for publishing Model Context Protocol (MCP) servers with real-world authentication, HTTP transport, health checks, Docker packaging, and client setup notes.
+A compact, domain-neutral Python template for experimenting with Model Context Protocol (MCP) servers that use FastAPI, FastMCP, Azure Entra ID integration, API-key fallback, health checks, Docker packaging, and client setup notes.
 
-This project is designed for builders who want to move beyond a local demo and ship an MCP server that can connect to tools such as Claude, Copilot Studio, Azure AI Foundry, and server-to-server clients.
+This project is designed for builders who want a small, readable starting point for moving beyond a local MCP demo while still being able to replace the sample tools with their own business or IT workflows.
 
 ## Why This Exists
 
 Most MCP examples are intentionally tiny. That is great for learning the protocol, but less helpful when you need to expose a server over HTTP, support OAuth discovery, keep API-key access for automation, and explain the deployment shape to another engineer.
 
-This boilerplate packages those practical pieces into a small, readable template:
+Microsoft also provides more complete Azure-hosted MCP samples. This repository takes a narrower approach: it is a lightweight boilerplate meant to be easy to read, fork, and adapt.
+
+This boilerplate packages those practical pieces into a small template:
 
 - FastMCP tool definitions with FastAPI HTTP hosting
 - Azure Entra ID integration through a lightweight OAuth proxy
@@ -19,6 +21,21 @@ This boilerplate packages those practical pieces into a small, readable template
 - Docker and Compose support
 - Integration docs with screenshots for popular clients
 - Tests and GitHub Actions CI so forks start with a quality bar
+
+## How This Differs from Azure's Official Sample
+
+Microsoft provides [Azure-Samples/remote-mcp-webapp-python-auth-oauth](https://github.com/Azure-Samples/remote-mcp-webapp-python-auth-oauth), a full FastAPI MCP Weather Server sample with OAuth 2.1, PKCE, Dynamic Client Registration, Azure AD integration, a web test interface, and Azure App Service deployment through `azd`.
+
+This repository is intentionally smaller and more domain-neutral. It is not trying to replace the Azure sample. Instead, it focuses on a reusable boilerplate shape:
+
+| Area | Azure official sample | This repository |
+|---|---|---|
+| Primary goal | Full Azure-hosted sample application | Compact boilerplate / starter template |
+| Domain | Weather tools | Domain-neutral starter tools |
+| Deployment focus | Azure App Service with `azd` | Local-first Docker / Compose, adaptable deployment shape |
+| Auth focus | Full OAuth 2.1 sample flow with PKCE and DCR | Azure Entra OAuth proxy bridge plus resource-server request validation |
+| Tooling | Built-in web OAuth test interface | Minimal runtime with system design and client integration notes |
+| Best for | Learning and deploying the official Azure sample app | Forking into your own MCP server PoC or business-tool template |
 
 ## Azure Entra ID and OAuth Proxy Scope
 
@@ -157,7 +174,7 @@ The GitHub Actions workflow runs the same test command on every push and pull re
 
 ## Architecture
 
-This boilerplate is organized around a small but production-oriented request path: public OAuth discovery, authentication middleware, FastMCP streamable HTTP transport, and extensible tool handlers.
+This boilerplate is organized around a small but practical request path: public OAuth discovery, authentication middleware, FastMCP streamable HTTP transport, and extensible tool handlers.
 
 ```mermaid
 flowchart LR
