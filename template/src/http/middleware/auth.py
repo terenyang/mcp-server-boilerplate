@@ -38,8 +38,9 @@ EXEMPT_PREFIXES = [
 
 EXEMPT_EXACT = {"/", "/health"}
 
+_MCP_PATH = "/mcp"
 _RESOURCE_METADATA_URL = (
-    f"{config.BASE_URL.rstrip('/')}/.well-known/oauth-protected-resource"
+    f"{config.BASE_URL.rstrip('/')}/.well-known/oauth-protected-resource{_MCP_PATH}"
 )
 
 
