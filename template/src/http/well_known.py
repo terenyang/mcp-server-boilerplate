@@ -42,8 +42,8 @@ async def oauth_authorization_server_metadata():
             "authorization_endpoint": f"{server}/authorize",
             "token_endpoint": f"{server}/token",
             "registration_endpoint": f"{server}/register",
-            # api://xxx/access_as_user is intentionally omitted here;
-            # the /authorize proxy injects it before forwarding to Entra.
+            # The API scope is intentionally omitted here; the /authorize proxy
+            # injects the full api:// scope before forwarding to Entra.
             "scopes_supported": ["openid", "profile", "email", "offline_access"],
             "response_types_supported": ["code"],
             "response_modes_supported": ["query"],
@@ -60,8 +60,19 @@ async def oauth_authorization_server_metadata():
 
 
 @router.get("/.well-known/oauth-protected-resource")
-async def oauth_protected_resource():
-    """Protected Resource Metadata (RFC 9728 §3)."""
+@router.get("/.well-known/oauth-protected-resource/{path:path}")
+async def oauth_protected_resource(path: str = ""):
+    """Protected Resource Metadata (RFC 9728 §3).
+
+    RFC 9728 §3.1: for resource URIs with a path, such as /mcp, clients
+    construct the discovery URL by inserting /.well-known/oauth-protected-resource
+    between the host and path. Therefore this server supports both the bare URL
+    and the path-suffixed URL, for example /.well-known/oauth-protected-resource/mcp.
+
+    The path value is accepted for compatibility but is not used. Both routes
+    return the same metadata document, and the resource value remains the MCP
+    endpoint URL.
+    """
     server = _server_uri()
     return JSONResponse(
         content={
