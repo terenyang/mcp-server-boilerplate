@@ -14,6 +14,7 @@ SERVICE_VERSION = os.getenv("SERVICE_VERSION", "1.0.0")
 AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
 AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "")
 AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET", "")
+REQUIRED_SCOPE = os.getenv("REQUIRED_SCOPE", "MCP.Access")
 
 # Stream concurrency (optional tuning)
 MAX_CONCURRENT_STREAMS = int(os.getenv("MAX_CONCURRENT_STREAMS", "20"))
