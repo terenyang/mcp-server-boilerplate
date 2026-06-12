@@ -38,6 +38,10 @@ _ENTRA_TOKEN = f"{_ENTRA_BASE}/oauth2/v2.0/token"
 _registered_clients: dict[str, dict] = {}
 
 
+def _resource_uri() -> str:
+    return f"{config.BASE_URL.rstrip('/')}/mcp"
+
+
 @router.post("/register", status_code=201)
 async def dynamic_client_registration(request: Request):
     """RFC 7591 Dynamic Client Registration shim."""
@@ -85,9 +89,11 @@ async def authorize_proxy(
 ):
     """Swap dynamic client_id for real Entra credentials and redirect to Entra."""
     # Always include the API scope so the token audience matches valid_audiences.
-    # scope is optional — some clients (e.g. Copilot Studio) omit it.
-    api_scope = f"api://{config.AZURE_CLIENT_ID}/access_as_user"
+    # Some clients may send the short-form scope name from cached metadata; Entra
+    # requires the full api:// scope and rejects requests containing both forms.
+    api_scope = f"api://{config.AZURE_CLIENT_ID}/{config.REQUIRED_SCOPE}"
     scopes = set(scope.split()) if scope else set()
+    scopes.discard(config.REQUIRED_SCOPE)
     scopes.add(api_scope)
     scopes.add("offline_access")
     merged_scope = " ".join(sorted(scopes))
@@ -162,10 +168,13 @@ async def token_proxy(request: Request):
         return JSONResponse(status_code=response.status_code, content=response.json())
 
     body = response.json()
+    if "access_token" in body:
+        body["resource"] = _resource_uri()
     logger.info(
-        "token_proxy: success token_type=%s expires_in=%s has_access_token=%s",
+        "token_proxy: success token_type=%s expires_in=%s has_access_token=%s resource=%s",
         body.get("token_type"),
         body.get("expires_in"),
         "access_token" in body,
+        body.get("resource"),
     )
     return JSONResponse(status_code=200, content=body)
