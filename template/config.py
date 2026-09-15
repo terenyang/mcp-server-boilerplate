@@ -16,6 +16,14 @@ AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "")
 AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET", "")
 REQUIRED_SCOPE = os.getenv("REQUIRED_SCOPE", "MCP.Access")
 
+# Tool authorization / audit configuration
+AUTH_METHOD = os.getenv("AUTH_METHOD", "entra_auth")
+ALLOWED_ENTRA_GROUPS = {
+    group_id.strip()
+    for group_id in os.getenv("ALLOWED_ENTRA_GROUPS", "").split(",")
+    if group_id.strip()
+}
+
 # Stream concurrency (optional tuning)
 MAX_CONCURRENT_STREAMS = int(os.getenv("MAX_CONCURRENT_STREAMS", "20"))
 QUEUE_WAIT_TIMEOUT = int(os.getenv("QUEUE_WAIT_TIMEOUT", "5"))
