@@ -128,10 +128,14 @@ async def authenticate(token: str) -> Tuple[str, Optional[str], Optional[str]]:
             options={"verify_exp": True, "verify_aud": True, "verify_iss": False},
         )
 
+        # Manual issuer check — accept both v2 (user tokens) and v1 (app tokens)
         token_issuer = payload.get("iss", "")
         if token_issuer not in valid_issuers:
             logger.warning("Untrusted issuer: %s", token_issuer)
             raise jwt.InvalidIssuerError(f"Issuer not trusted: {token_issuer}")
+
+        
+
 
         user_oid = payload.get("oid")
         if not user_oid:

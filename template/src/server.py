@@ -12,6 +12,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 import config
 from src.auth_context import get_auth
+from src.deps import check_entra_groups,tool_guard
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
+@tool_guard(depends_on=[check_entra_groups])
 async def whoami() -> Dict[str, Any]:
     """Return identity information from the current session's access token.
 
