@@ -59,15 +59,34 @@ class StreamConcurrencyController:
 
             last_sent = time.monotonic()
             response_started = False
+            response_complete = False
+            # GET /mcp opens a long-lived SSE notification stream that is
+            # expected to be idle between server pushes: no idle timeout for it
+            # (the hard timeout still applies).
+            is_sse_get = scope.get("method") == "GET"
 
             async def send_wrapper(message):
-                nonlocal last_sent, response_started
+                nonlocal last_sent, response_started, response_complete
                 if message["type"] == "http.response.start":
                     response_started = True
-                if message["type"] == "http.response.body":
+                    last_sent = time.monotonic()
+                elif message["type"] == "http.response.body":
                     if message.get("body") or message.get("more_body"):
                         last_sent = time.monotonic()
+                    if not message.get("more_body", False):
+                        response_complete = True
                 await send(message)
+
+            async def finish_response() -> None:
+                """Close a started-but-unfinished response so the client is not cut off."""
+                nonlocal response_complete
+                if response_started and not response_complete:
+                    # The client may already be gone; cleanup must not raise.
+                    with contextlib.suppress(Exception):
+                        await send(
+                            {"type": "http.response.body", "body": b"", "more_body": False}
+                        )
+                    response_complete = True
 
             async def app_runner():
                 await self._app(scope, receive, send_wrapper)
@@ -85,7 +104,7 @@ class StreamConcurrencyController:
                     task.cancel()
 
             app_task = asyncio.create_task(app_runner())
-            idle_task = asyncio.create_task(idle_watchdog(app_task))
+            idle_task = None if is_sse_get else asyncio.create_task(idle_watchdog(app_task))
             hard_task = asyncio.create_task(hard_watchdog(app_task))
 
             try:
@@ -100,12 +119,17 @@ class StreamConcurrencyController:
                         },
                     )
                     await response(scope, receive, send)
+                else:
+                    await finish_response()
                 return
             finally:
-                idle_task.cancel()
+                await finish_response()
+                if idle_task is not None:
+                    idle_task.cancel()
                 hard_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await idle_task
+                if idle_task is not None:
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await idle_task
                 with contextlib.suppress(asyncio.CancelledError):
                     await hard_task
         finally:
