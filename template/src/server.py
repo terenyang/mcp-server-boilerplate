@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 import config
@@ -17,15 +17,18 @@ from src.deps import check_entra_groups,tool_guard
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP(
-    name=config.SERVICE_NAME,
-    stateless_http=True,
-    streamable_http_path="/",
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=False,
-        allowed_hosts=["*"],
-        allowed_origins=["*"],
-    ),
+# Transport settings (path, stateless mode, security) are passed to
+# streamable_http_app() in src/http/mcp_mount.py — mcp 2.x moved them off the
+# constructor.
+mcp = MCPServer(name=config.SERVICE_NAME)
+
+# Must be passed explicitly: when omitted, mcp 2.x auto-enables DNS rebinding
+# protection that only allows localhost hosts, which rejects tunnels and public
+# domains. Authentication remains the access control.
+MCP_TRANSPORT_SECURITY = TransportSecuritySettings(
+    enable_dns_rebinding_protection=False,
+    allowed_hosts=["*"],
+    allowed_origins=["*"],
 )
 
 
@@ -57,6 +60,7 @@ async def whoami() -> Dict[str, Any]:
 
 
 @mcp.tool()
+@tool_guard(depends_on=[check_entra_groups])
 async def ping(message: str = "ping") -> str:
     """Echo the message back with a server timestamp. Useful as a connectivity check."""
     ts = datetime.now(timezone.utc).isoformat()

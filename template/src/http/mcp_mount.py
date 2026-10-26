@@ -1,8 +1,8 @@
-"""Mount FastMCP streamable-HTTP app onto the FastAPI instance at /mcp."""
+"""Mount the MCPServer streamable-HTTP app onto the FastAPI instance at /mcp."""
 from fastapi import FastAPI
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from src.server import mcp
+from src.server import MCP_TRANSPORT_SECURITY, mcp
 from src.http.middleware.stream_guard import (
     StreamConcurrencyController,
     MAX_CONCURRENT_STREAMS,
@@ -30,7 +30,14 @@ class MCPPathMiddleware:
 
 def mount_mcp(app: FastAPI) -> StreamConcurrencyController:
     """Wrap the MCP ASGI app with concurrency control and mount at /mcp."""
-    streamable_app = mcp.streamable_http_app()
+    # Path is "/" because the app is mounted at /mcp (2.x defaults to "/mcp",
+    # which would yield /mcp/mcp). stateless_http disables session management.
+    # transport_security must be explicit — see MCP_TRANSPORT_SECURITY.
+    streamable_app = mcp.streamable_http_app(
+        streamable_http_path="/",
+        stateless_http=True,
+        transport_security=MCP_TRANSPORT_SECURITY,
+    )
     guarded = StreamConcurrencyController(
         streamable_app,
         max_concurrent=MAX_CONCURRENT_STREAMS,

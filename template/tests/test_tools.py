@@ -6,6 +6,8 @@ from src.server import ping, server_profile, whoami
 
 @pytest.mark.asyncio
 async def test_ping_includes_message():
+    set_auth(AuthContext(auth_type="api_key"))
+
     result = await ping("hello")
 
     assert "pong" in result

@@ -101,8 +101,10 @@ def _get_public_key(token: str) -> bytes:
     raise InvalidAuthorizationToken(f"Key ID {kid} not found in JWKS")
 
 
-async def authenticate(token: str) -> Tuple[str, Optional[str], Optional[str]]:
-    """Validate an Azure AD JWT. Returns (user_oid, user_name, user_upn)."""
+async def authenticate(
+    token: str,
+) -> Tuple[str, Optional[str], Optional[str], Dict[str, Any]]:
+    """Validate an Azure AD JWT. Returns (user_oid, user_name, user_upn, claims)."""
     if not config.AZURE_CLIENT_ID or not config.AZURE_TENANT_ID:
         raise HTTPException(
             status_code=500, detail="OAuth2 not configured on this server"
@@ -141,7 +143,7 @@ async def authenticate(token: str) -> Tuple[str, Optional[str], Optional[str]]:
         if not user_oid:
             raise HTTPException(status_code=401, detail="Token missing 'oid' claim")
 
-        return user_oid, payload.get("name"), payload.get("upn")
+        return user_oid, payload.get("name"), payload.get("upn"), payload
 
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")

@@ -22,7 +22,7 @@ This boilerplate exposes domain-specific functionality via the [Model Context Pr
 |---|---|
 | HTTP / Auth | FastAPI + Starlette middleware; JWT (`middleware/jwt.py`) or API key (`middleware/api_key.py`) validation |
 | OAuth proxy | Bridges Claude.ai's RFC 7591 DCR requirement with Azure Entra's static app model |
-| MCP protocol | FastMCP streamable-HTTP transport; stateless mode |
+| MCP protocol | MCPServer streamable-HTTP transport; stateless mode |
 
 ---
 
@@ -50,14 +50,14 @@ MCPPathMiddleware
   │  Rewrites /mcp → /mcp/ to prevent Starlette 307 redirect on POST
   │
   ▼
-StreamConcurrencyController  (wraps FastMCP ASGI app)
+StreamConcurrencyController  (wraps MCPServer ASGI app)
   │  • Semaphore: max 20 concurrent streams (configurable)
   │  • Queue wait: 5 s → 429 if exceeded
   │  • Idle timeout: 60 s → 503 if no data sent
   │  • Hard timeout: 300 s → 503 regardless
   │
   ▼
-FastMCP (streamable HTTP)
+MCPServer (streamable HTTP)
   │  • MCP Initialize → tool list
   │  • MCP tool_call → dispatched to tool handler in src/server.py
   │
@@ -143,7 +143,7 @@ sequenceDiagram
     participant S as MCP Server<br/>(FastAPI + OAuth Proxy)
     participant D as DCR Store<br/>(in-memory by default)
     participant E as Azure Entra ID
-    participant M as MCP Runtime<br/>(FastMCP)
+    participant M as MCP Runtime<br/>(MCPServer)
 
     C->>S: POST /mcp without token
     S-->>C: 401 WWW-Authenticate<br/>resource_metadata=/.well-known/oauth-protected-resource
@@ -323,7 +323,7 @@ Copilot Studio uses the same DCR proxy path but with two behavioural differences
 
 ## MCP Tool Execution
 
-All tools are defined in `src/server.py` and registered on a FastMCP instance in stateless HTTP mode.
+All tools are defined in `src/server.py` and registered on a MCPServer instance in stateless HTTP mode.
 
 ### Adding Tools
 
@@ -339,7 +339,7 @@ async def my_tool(param: str) -> dict:
 ### Tool Call Path
 
 ```
-FastMCP tool_call dispatch
+MCPServer tool_call dispatch
   → src/server.py handler
       ├── Parameter validation
       ├── Service / business logic call

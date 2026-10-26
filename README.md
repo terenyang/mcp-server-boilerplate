@@ -1,6 +1,6 @@
 # Practical MCP Server Boilerplate for Azure Entra Integration
 
-A compact, domain-neutral Python template for experimenting with Model Context Protocol (MCP) servers that use FastAPI, FastMCP, Azure Entra ID integration, API-key fallback, health checks, Docker packaging, and client setup notes.
+A compact, domain-neutral Python template for experimenting with Model Context Protocol (MCP) servers that use FastAPI, the MCP Python SDK 2.x (`MCPServer`), Azure Entra ID integration, API-key fallback, health checks, Docker packaging, and client setup notes.
 
 This project is designed for builders who want a small, readable starting point for moving beyond a local MCP demo while still being able to replace the sample tools with their own business or IT workflows.
 
@@ -12,7 +12,7 @@ Microsoft also provides more complete Azure-hosted MCP samples. This repository 
 
 This boilerplate packages those practical pieces into a small template:
 
-- FastMCP tool definitions with FastAPI HTTP hosting
+- MCP Python SDK 2.x (`MCPServer`) tool definitions with FastAPI HTTP hosting
 - Azure Entra ID integration through a lightweight OAuth proxy
 - API key authentication for local development and automation
 - OAuth discovery endpoints for MCP-capable clients
@@ -246,6 +246,10 @@ async def my_tool(param: str) -> dict:
 - `auth_type`: `"bearer"` or `"api_key"`
 - `user_oid`, `user_name`, `user_upn`: populated for OAuth bearer tokens
 
+Wrap tools with `@tool_guard(depends_on=[check_entra_groups])` (from `src/deps.py`) to apply the Entra group restriction and audit logging. `tool_guard` converts any exception raised by a dependency or the tool body into a `ToolError`, because the MCP Python SDK 2.x returns only the text of a `ToolError` to the client; anything else becomes a generic "Error executing tool" message. Raise errors with wording you are happy for the caller to read.
+
+> **Upgrading from SDK 1.x:** `mcp.server.fastmcp` no longer exists. Import `MCPServer` from `mcp.server.mcpserver`, and pass transport settings (`streamable_http_path`, `stateless_http`, `transport_security`) to `streamable_http_app()` instead of the constructor. See `src/server.py` and `src/http/mcp_mount.py`.
+
 ## Development Checks
 
 ```bash
@@ -258,7 +262,7 @@ The GitHub Actions workflow runs the same test command on every push and pull re
 
 ## Architecture
 
-This boilerplate is organized around a small but practical request path: public OAuth discovery, authentication middleware, FastMCP streamable HTTP transport, and extensible tool handlers.
+This boilerplate is organized around a small but practical request path: public OAuth discovery, authentication middleware, MCPServer streamable HTTP transport, and extensible tool handlers.
 
 ```mermaid
 flowchart LR
@@ -288,7 +292,7 @@ flowchart LR
         MCP["/mcp<br/>Streamable HTTP"]
         PathMW["MCPPathMiddleware"]
         StreamCtrl["StreamConcurrencyController"]
-        FastMCP["FastMCP Server"]
+        MCPServer["MCPServer"]
     end
 
     subgraph Tools["Tool Layer"]
@@ -330,10 +334,10 @@ flowchart LR
 
     Context --> PathMW
     PathMW --> StreamCtrl
-    StreamCtrl --> FastMCP
+    StreamCtrl --> MCPServer
 
-    FastMCP --> BuiltIn
-    FastMCP --> Custom
+    MCPServer --> BuiltIn
+    MCPServer --> Custom
 
     Custom --> ITSM
     Custom --> CMDB

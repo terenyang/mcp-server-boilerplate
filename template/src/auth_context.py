@@ -2,11 +2,11 @@
 
 Python contextvars propagate through await chains and into asyncio tasks
 created via create_task, so a value set in middleware is visible inside
-FastMCP tool handlers without any explicit passing.
+MCPServer tool handlers without any explicit passing.
 """
 from contextvars import ContextVar
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -15,6 +15,7 @@ class AuthContext:
     user_oid: Optional[str] = None
     user_name: Optional[str] = None
     user_upn: Optional[str] = None
+    claims: Dict[str, Any] = field(default_factory=dict)  # validated JWT payload; empty for API keys
 
 
 _current_auth: ContextVar[Optional[AuthContext]] = ContextVar(
