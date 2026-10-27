@@ -7,25 +7,35 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 import config
+from src.apps import APP_CALLABLE_META, apps
 from src.auth_context import get_auth
 from src.deps import check_entra_groups,tool_guard
+from src.identity import identity_info
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP(
+# Transport settings (path, stateless mode, security) are passed to
+# streamable_http_app() in src/http/mcp_mount.py — mcp 2.x moved them off the
+# constructor.
+# Extensions are fixed at construction: `apps` was fully populated when
+# src.apps was imported above, so anything registered after this line is ignored.
+mcp = MCPServer(
     name=config.SERVICE_NAME,
-    stateless_http=True,
-    streamable_http_path="/",
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=False,
-        allowed_hosts=["*"],
-        allowed_origins=["*"],
-    ),
+    extensions=[apps] if config.ENABLE_MCP_APPS else [],
+)
+
+# Must be passed explicitly: when omitted, mcp 2.x auto-enables DNS rebinding
+# protection that only allows localhost hosts, which rejects tunnels and public
+# domains. Authentication remains the access control.
+MCP_TRANSPORT_SECURITY = TransportSecuritySettings(
+    enable_dns_rebinding_protection=False,
+    allowed_hosts=["*"],
+    allowed_origins=["*"],
 )
 
 
@@ -37,26 +47,11 @@ async def whoami() -> Dict[str, Any]:
     - OAuth2 Bearer token: returns user claims (name, UPN, OID) from the JWT.
     - API key: returns a message indicating no user token is present.
     """
-    auth = get_auth()
-
-    if auth is None or auth.auth_type == "api_key":
-        return {
-            "auth_type": "api_key",
-            "message": "Authenticated via API key — no JWT token available.",
-            "user": None,
-        }
-
-    return {
-        "auth_type": "bearer",
-        "user": {
-            "oid": auth.user_oid,
-            "name": auth.user_name,
-            "upn": auth.user_upn,
-        },
-    }
+    return identity_info()
 
 
-@mcp.tool()
+@mcp.tool(meta=APP_CALLABLE_META)  # the whoami_card app calls ping through the host
+@tool_guard(depends_on=[check_entra_groups])
 async def ping(message: str = "ping") -> str:
     """Echo the message back with a server timestamp. Useful as a connectivity check."""
     ts = datetime.now(timezone.utc).isoformat()

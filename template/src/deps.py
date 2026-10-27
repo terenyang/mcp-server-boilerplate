@@ -9,10 +9,17 @@ Usage:
 tool_guard runs each dependency in order before the tool body executes.
 A dependency that raises will abort the call before the tool body runs.
 Tool call logging is triggered inside tool_guard via record_tool_call.
+
+mcp 2.x only returns the text of a ToolError to the client; any other exception
+becomes a generic "Error executing tool <name>". tool_guard therefore converts
+every failure (including PermissionError from a dependency) into ToolError so
+permission and validation messages stay readable.
 """
 import functools
 import logging
 from typing import Callable, List, Optional
+
+from mcp.server.mcpserver.exceptions import ToolError
 
 import config
 from src.auth_context import AuthContext, get_auth
@@ -83,17 +90,26 @@ def tool_guard(depends_on: Optional[List[Callable]] = None):
     """Decorator factory for MCP tools.
 
     Runs each dependency function in order, then logs the tool call.
-    Uses functools.wraps so FastMCP can introspect the original function
+    Any exception other than ToolError is logged and re-raised as ToolError so
+    its message reaches the client (see module docstring).
+    Uses functools.wraps so MCPServer can introspect the original function
     signature via __wrapped__.
     """
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
         async def wrapper(*args, **kwargs):
-            auth = get_auth()
-            for dep in (depends_on or []):
-                await dep(auth)
-            await record_tool_call(fn.__name__, auth, _safe_input_summary(kwargs))
-            return await fn(*args, **kwargs)
+            try:
+                auth = get_auth()
+                for dep in (depends_on or []):
+                    await dep(auth)
+                await record_tool_call(fn.__name__, auth, _safe_input_summary(kwargs))
+                return await fn(*args, **kwargs)
+            except ToolError:
+                raise
+            except Exception as exc:
+                # The SDK logs ToolError without a traceback; keep it for diagnosis.
+                logger.warning("Tool %s failed: %s", fn.__name__, exc, exc_info=True)
+                raise ToolError(str(exc)) from exc
         return wrapper
     return decorator
 

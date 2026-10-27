@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mock MCP Apps host</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #eef0f3; }
+  #frameWrap { width: var(--w, 640px); max-width: 100%; background: #fff; border: 1px solid #ccc; }
+  iframe { border: 0; width: 100%; height: 200px; display: block; }
+  #log { font: 11px monospace; white-space: pre-wrap; max-height: 260px; overflow: auto; background: #fff; border: 1px solid #ccc; padding: 6px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="info"></div>
+<div id="frameWrap"><iframe id="view" sandbox="allow-scripts" title="MCP App"></iframe></div>
+<button id="teardown" type="button">Teardown</button>
+<div id="log"></div>
+<script>
+// Host side of MCP Apps (ext-apps 2026-01-26) for local testing.
+//   ?mock=bearer|apikey|denied|pingdenied  simulated backend (no server needed); omit for real mode
+//   ?theme=dark  ?width=360  ?msgArray=1  ?msgFail=1  ?tool=<name>  ?args={"json":"args"}
+const qs = new URLSearchParams(location.search);
+const MOCK = qs.get("mock");
+const TOOL_ARGS = JSON.parse(qs.get("args") || "{}");
+const THEME = qs.get("theme") || "light";
+if (qs.get("width")) document.documentElement.style.setProperty("--w", qs.get("width") + "px");
+const iframe = document.getElementById("view");
+window.__hostLog = [];       // every message exchanged with the app, in order
+window.__chatMessages = [];  // params of every accepted ui/message
+let toolMeta = {};
+
+function log(dir, msg) {
+  window.__hostLog.push({ dir, msg, t: Date.now() });
+  const el = document.getElementById("log");
+  el.textContent += dir + " " + JSON.stringify(msg).slice(0, 300) + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---- mock backend ----------------------------------------------------------
+const CARD_URI = "ui://boilerplate/whoami-card.html";
+const USERS = {
+  bearer: { auth_type: "bearer", user: { oid: "00000000-0000-0000-0000-000000000001", name: "Jane Doe", upn: "jane@corp.com" } },
+  apikey: { auth_type: "api_key", message: "Authenticated via API key — no JWT token available.", user: null },
+};
+const DENIED = "User is not authorized to access this tool";
+function ok(sc, text) { return { result: { content: [{ type: "text", text }], structuredContent: sc, isError: false } }; }
+function err(text) { return { result: { content: [{ type: "text", text }], isError: true } }; }
+
+async function mockRpc(method, params) {
+  if (method === "tools/list") {
+    const tool = (name, meta) => ({ name, _meta: meta });
+    return { result: { tools: [
+      tool("whoami_card", { ui: { resourceUri: CARD_URI }, "ui/resourceUri": CARD_URI }),
+      tool("ping", { ui: { visibility: ["model", "app"] } }),
+      tool("model_only_tool", { ui: { visibility: ["model"] } }),
+    ] } };
+  }
+  if (method === "resources/read") {
+    return { result: { contents: [{ uri: params.uri, mimeType: "text/html;profile=mcp-app", text: await (await fetch("/app.html")).text() }] } };
+  }
+  const denied = MOCK === "denied";
+  switch (params.name) {
+    case "whoami_card": {
+      if (denied) return err(DENIED);
+      const info = USERS[MOCK === "pingdenied" ? "bearer" : MOCK] || USERS.apikey;
+      const text = info.user ? "Signed in as " + info.user.name + " (" + info.user.upn + ") via Entra ID (bearer token)." : "Authenticated via API key — no user token is present.";
+      return { result: { content: [{ type: "text", text }], structuredContent: info, isError: false } };
+    }
+    case "ping": {
+      if (denied || MOCK === "pingdenied") return err(DENIED);  // pingdenied: card loads, only ping fails
+      const text = "pong: " + JSON.stringify((params.arguments || {}).message || "ping") + " at " + new Date().toISOString();
+      return ok({ result: text }, text);
+    }
+  }
+  return err("Unknown tool " + params.name);
+}
+
+async function rpc(method, params) {
+  if (MOCK) return mockRpc(method, params);
+  const r = await fetch("/rpc", { method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+  return r.json();
+}
+
+// ---- host <-> view bridge --------------------------------------------------
+function send(msg) { log("host->view", msg); iframe.contentWindow.postMessage(msg, "*"); }
+let toolResult = null;
+let teardownId = 1000000;
+
+window.addEventListener("message", async (e) => {
+  if (e.source !== iframe.contentWindow) return;
+  const msg = e.data;
+  log("view->host", msg);
+  if (msg.method === "ui/notifications/size-changed") { iframe.style.height = msg.params.height + "px"; return; }
+  if (msg.method === "ui/notifications/initialized") {
+    // The host sends nothing to the view before it has initialized.
+    send({ jsonrpc: "2.0", method: "ui/notifications/tool-input", params: { arguments: TOOL_ARGS } });
+    send({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: toolResult });
+    return;
+  }
+  if (msg.id === undefined || msg.method === undefined) return;  // a reply to one of our requests
+  const reply = (result) => send({ jsonrpc: "2.0", id: msg.id, result });
+  const fail = (message, code = -32603) => send({ jsonrpc: "2.0", id: msg.id, error: { code, message } });
+  switch (msg.method) {
+    case "ui/initialize":
+      return reply({ protocolVersion: "2026-01-26", hostInfo: { name: "mock-host", version: "0" }, hostCapabilities: { openLinks: {}, serverTools: {} },
+        hostContext: { theme: THEME, displayMode: "inline", locale: "en-US" } });
+    case "tools/call": {
+      // Hosts must reject app-initiated calls to tools whose visibility lacks "app".
+      const vis = (toolMeta[msg.params.name] && toolMeta[msg.params.name].ui && toolMeta[msg.params.name].ui.visibility) || ["model", "app"];
+      if (!vis.includes("app")) return fail("Tool not callable by app: " + msg.params.name);
+      const r = await rpc("tools/call", msg.params);
+      return r.error ? fail(r.error.message) : reply(r.result);
+    }
+    case "ui/open-link": return reply({});
+    case "ui/update-model-context": return reply({});
+    case "ui/message":
+      // ?msgFail=1 simulates a host that rejects every chat message
+      if (qs.get("msgFail")) return fail("Message rejected (simulated)", -32000);
+      // ?msgArray=1 simulates a host that only accepts a content array
+      if (qs.get("msgArray") && !Array.isArray(msg.params.content)) return fail("Invalid message format", -32000);
+      window.__chatMessages.push(msg.params);
+      return reply({});
+    default: return fail("Method not found: " + msg.method, -32601);
+  }
+});
+
+window.__teardown = () => send({ jsonrpc: "2.0", id: teardownId++, method: "ui/resource-teardown", params: { reason: "test" } });
+document.getElementById("teardown").addEventListener("click", window.__teardown);
+
+(async () => {
+  const listed = await rpc("tools/list", {});
+  if (listed.error || !listed.result) {
+    document.getElementById("info").textContent = "Cannot list tools: " + ((listed.error && listed.error.message) || "no result");
+    return;
+  }
+  for (const t of listed.result.tools) toolMeta[t.name] = t._meta || {};
+  const appTool = qs.get("tool") || Object.keys(toolMeta).find((n) => toolMeta[n].ui && toolMeta[n].ui.resourceUri);
+  if (!appTool) { document.getElementById("info").textContent = "No tool with _meta.ui.resourceUri"; return; }
+  const uri = toolMeta[appTool].ui.resourceUri;
+  toolResult = (await rpc("tools/call", { name: appTool, arguments: TOOL_ARGS })).result;
+  const html = (await rpc("resources/read", { uri })).result.contents[0].text;
+  document.getElementById("info").textContent = (MOCK ? "mock=" + MOCK : "real server") + " · " + appTool + " · " + uri + " · " + html.length + " chars";
+  iframe.srcdoc = html;
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

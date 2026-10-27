@@ -1,0 +1,82 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "whoami",
+        "description": "Return identity information from the current session's access token.\n\n- OAuth2 Bearer token: returns user claims (name, UPN, OID) from the JWT.\n- API key: returns a message indicating no user token is present.\n",
+        "inputSchema": {
+          "properties": {},
+          "title": "whoamiArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "additionalProperties": true,
+              "title": "Result",
+              "type": "object"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "whoamiOutput",
+          "type": "object"
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Echo the message back with a server timestamp. Useful as a connectivity check.",
+        "inputSchema": {
+          "properties": {
+            "message": {
+              "default": "ping",
+              "title": "Message",
+              "type": "string"
+            }
+          },
+          "title": "pingArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "pingOutput",
+          "type": "object"
+        }
+      },
+      {
+        "name": "server_profile",
+        "description": "Return server metadata and extension hints for MCP clients.",
+        "inputSchema": {
+          "properties": {},
+          "title": "server_profileArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "additionalProperties": true,
+              "title": "Result",
+              "type": "object"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "server_profileOutput",
+          "type": "object"
+        }
+      }
+    ]
+  }
+}

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastMCP streamable HTTP requires session_manager.run() even in stateless mode."""
+    """MCPServer streamable HTTP requires session_manager.run() even in stateless mode."""
     logger.info("Starting %s", config.SERVICE_NAME)
     async with mcp.session_manager.run():
         yield

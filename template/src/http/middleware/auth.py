@@ -1,7 +1,7 @@
 """Authentication middleware — MCP authorization flow (resource server role).
 
 Implemented as a raw ASGI middleware (not BaseHTTPMiddleware) so that
-contextvars propagate correctly through FastMCP's streaming responses.
+contextvars propagate correctly through MCPServer's streaming responses.
 BaseHTTPMiddleware wraps responses in a new task, which can break context
 propagation for the streaming MCP transport.
 
@@ -88,12 +88,13 @@ class AuthenticationMiddleware:
         if auth_header.startswith("Bearer "):
             token = auth_header.split(" ", 1)[1]
             try:
-                user_oid, user_name, user_upn = await authenticate(token)
+                user_oid, user_name, user_upn, claims = await authenticate(token)
                 set_auth(AuthContext(
                     auth_type="bearer",
                     user_oid=user_oid,
                     user_name=user_name,
                     user_upn=user_upn,
+                    claims=claims,
                 ))
                 logger.info("Bearer auth: %s (%s)", user_oid, user_name)
                 await self.app(scope, receive, send)

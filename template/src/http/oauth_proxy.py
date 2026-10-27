@@ -70,7 +70,7 @@ async def dynamic_client_registration(request: Request):
             "client_secret": client_secret,
             "client_id_issued_at": int(time.time()),
             "redirect_uris": body.get("redirect_uris", []),
-            "grant_types": ["authorization_code"],
+            "grant_types": body.get("grant_types", ["authorization_code"]),
             "response_types": ["code"],
             "token_endpoint_auth_method": "none",
         },
@@ -82,7 +82,7 @@ async def authorize_proxy(
     response_type: str,
     client_id: str,
     redirect_uri: str,
-    state: str,
+    state: Optional[str] = None,
     scope: Optional[str] = None,
     code_challenge: Optional[str] = None,
     code_challenge_method: str = "S256",
@@ -103,7 +103,7 @@ async def authorize_proxy(
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "scope": merged_scope,
-        "state": state,
+        "state": state or "",  # some clients omit state
     }
     if code_challenge:
         params["code_challenge"] = code_challenge

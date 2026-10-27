@@ -4,6 +4,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env_flag(name: str, default: str = "true") -> bool:
+    """Read a boolean env var: "false", "0" and "no" (any case) are off."""
+    return os.getenv(name, default).strip().lower() not in ("false", "0", "no")
+
+
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 API_KEYS = os.getenv("API_KEYS", "")
 
@@ -29,3 +35,7 @@ MAX_CONCURRENT_STREAMS = int(os.getenv("MAX_CONCURRENT_STREAMS", "20"))
 QUEUE_WAIT_TIMEOUT = int(os.getenv("QUEUE_WAIT_TIMEOUT", "5"))
 HARD_STREAM_TIMEOUT = int(os.getenv("HARD_STREAM_TIMEOUT", "300"))
 IDLE_STREAM_TIMEOUT = int(os.getenv("IDLE_STREAM_TIMEOUT", "60"))
+
+# MCP Apps (interactive UI). Set to "false" to hide app tools/resources from
+# clients that mishandle them.
+ENABLE_MCP_APPS = _env_flag("ENABLE_MCP_APPS")
