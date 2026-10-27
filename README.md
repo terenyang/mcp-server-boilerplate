@@ -104,7 +104,9 @@ In other words, this project does not replace Azure Entra ID. It provides the MC
 .
 ├── template/                    # Copy this folder to start a new MCP server
 │   ├── src/server.py             # MCP tools live here
+│   ├── src/apps/                 # MCP Apps: example card, shared bridge, HTML
 │   ├── src/http/                 # FastAPI app, OAuth proxy, middleware
+│   ├── scripts/mcp_app_host/     # Mock MCP Apps host for testing app UIs
 │   ├── tests/                    # Starter tests
 │   ├── Dockerfile
 │   ├── docker-compose.yml
@@ -155,6 +157,7 @@ curl http://localhost:8080/health
 | `AZURE_CLIENT_ID` | OAuth | Azure App Registration client ID |
 | `REQUIRED_SCOPE` | OAuth | Scope name exposed by the App Registration, without the `api://` prefix. Default: `MCP.Access` |
 | `AZURE_CLIENT_SECRET` | Optional | Server-side secret used by the OAuth proxy |
+| `ENABLE_MCP_APPS` | No | Expose the example MCP App (interactive UI). Default: `true`; `false`, `0` or `no` turns it off |
 
 Set `BASE_URL=http://localhost:8080` and leave the Azure variables blank to run in API-key-only mode.
 
@@ -225,6 +228,7 @@ For Claude and Azure client walkthroughs, see [docs/CLIENT_INTEGRATION.md](docs/
 | `whoami` | Returns JWT claims when OAuth is used, or an API-key auth message |
 | `ping` | Echoes a message with a UTC timestamp |
 | `server_profile` | Returns service metadata, auth mode, endpoints, and extension hints |
+| `whoami_card` | Shows the signed-in identity as an interactive card (MCP App); text for clients without UI. Only listed when `ENABLE_MCP_APPS` is on |
 
 ## Add Your Own Tool
 
@@ -248,7 +252,105 @@ async def my_tool(param: str) -> dict:
 
 Wrap tools with `@tool_guard(depends_on=[check_entra_groups])` (from `src/deps.py`) to apply the Entra group restriction and audit logging. `tool_guard` converts any exception raised by a dependency or the tool body into a `ToolError`, because the MCP Python SDK 2.x returns only the text of a `ToolError` to the client; anything else becomes a generic "Error executing tool" message. Raise errors with wording you are happy for the caller to read.
 
+If an MCP App needs to call your tool through the host, declare it app-callable with `@mcp.tool(meta=APP_CALLABLE_META)` (from `src.apps`). Hosts reject an app-initiated call to a tool that does not declare it, and those calls run with the user's token, so opt in only the tools an app actually needs.
+
 > **Upgrading from SDK 1.x:** `mcp.server.fastmcp` no longer exists. Import `MCPServer` from `mcp.server.mcpserver`, and pass transport settings (`streamable_http_path`, `stateless_http`, `transport_security`) to `streamable_http_app()` instead of the constructor. See `src/server.py` and `src/http/mcp_mount.py`.
+
+## MCP Apps
+
+MCP Apps let a tool return an interactive UI that clients such as Claude render in a sandboxed iframe. The template ships one small example, `whoami_card`: it shows who is signed in, can call `ping` through the host, and can send a message to the chat when the user clicks a button.
+
+```text
+template/src/apps/
+├── __init__.py          # imports the app modules; exports `apps`, APP_CALLABLE_META, load_app_html
+├── registry.py          # the single shared `Apps()` registry every app registers on
+├── app_bridge.js        # browser side: talks to the host (handshake, tool calls, theme, size, teardown)
+├── loader.py            # server side: inlines app_bridge.js into an app's HTML
+├── whoami_card.py       # the example's tool + ui:// resource registration
+└── whoami_card.html     # the example's UI, no external resources
+template/src/identity.py # caller identity data shared by `whoami` and `whoami_card`
+```
+
+### How a request flows
+
+```text
+ Host (Claude)                    Your server                     App (iframe)
+      |-- tools/call whoami_card ------>|                               |
+      |<-- text + structuredContent ----|  text: for the model / no-UI clients
+      |                                 |  structuredContent: for the UI
+      |-- resources/read ui://... ----->|                               |
+      |<-- HTML with the bridge inlined-|                               |
+      |------------------------- render the iframe --------------------->|
+      |<-------------------- ui/initialize (handshake) -------------------|
+      |-- host context (theme, fonts) --------------------------------->|
+      |<-------------------- ui/notifications/initialized ----------------|
+      |-- ui/notifications/tool-result (structuredContent) ------------->|  app renders
+      |<-------------------- tools/call ping (user clicks Ping) ---------|
+      |-- calls your server with the user's token (tool_guard applies) -|
+```
+
+### What `app_bridge.js` does
+
+The app is an ordinary web page in a sandbox, so it cannot reach your server directly. It can only exchange JSON-RPC messages with the host through `window.parent.postMessage`. `app_bridge.js` implements that protocol once (MCP Apps / ext-apps `2026-01-26`, no npm or CDN) and exposes a single global, `McpApp`:
+
+| Call | What it does |
+|---|---|
+| `McpApp.connect({ appInfo, onFail })` | Handshake: sends `ui/initialize`, applies the host's theme and fonts, then sends `ui/notifications/initialized`. The host sends nothing before that. `onFail` runs if the host does not answer (the page was opened outside an MCP Apps client). |
+| `McpApp.onNotification(method, fn)` | Handle a host notification, for example `ui/notifications/tool-result` (carries the tool's `structuredContent`), `tool-input` or `tool-cancelled`. |
+| `McpApp.onRequest(method, fn)` | Answer a request from the host; return the result value. |
+| `McpApp.onTeardown(fn)` | Register cleanup (stop timers, ignore late results). The bridge replies `{}` to `ui/resource-teardown` after running these. |
+| `McpApp.callTool(name, args)` | `tools/call` through the host. Throws the error text if the tool failed; otherwise returns `structuredContent` (unwrapping a lone `result` key), or the parsed or raw text. Only works for tools that declare app visibility. |
+| `McpApp.sendMessage(text)` | `ui/message`: puts a message in the chat. Sends a single content object first and retries once with an array if the host rejects it. Call it only from a user click, never automatically. |
+| `McpApp.openLink(url)` | `ui/open-link`, falling back to opening a new tab. |
+| `McpApp.request` / `notify` | Low-level JSON-RPC request and notification, for anything not covered above. |
+| `McpApp.applyHostContext(ctx)` / `reportSize()` | Used internally; exposed for apps that need to call them. |
+
+It also does these without being asked: answers the host's `ping`, re-applies the theme on `host-context-changed`, and reports the content size to the host. Size is measured on `document.body` with a `ResizeObserver` (not `documentElement.scrollHeight`, which never shrinks inside an iframe), so the card shrinks when its content does.
+
+### What `loader.py` does
+
+An iframe's default CSP is `default-src 'none'` with no network, so an app must be one self-contained HTML document. `load_app_html("my_app.html")` reads that file from `src/apps/`, reads `app_bridge.js`, and replaces the placeholder `/*__APP_BRIDGE__*/` in the HTML with the JavaScript. It raises `ValueError` if the HTML has no placeholder, so you cannot ship an app without its bridge by accident. It runs once at import time (see "Editing the UI" below). It lives in its own module so that app modules can use it without a circular import through `src/apps/__init__.py`.
+
+An app's HTML puts the placeholder inside its own `<script>`:
+
+```html
+<script>
+(() => {
+  /*__APP_BRIDGE__*/
+  McpApp.onNotification("ui/notifications/tool-result", (p) => render(p.structuredContent));
+  McpApp.connect({ appInfo: { name: "my-app", version: "1.0.0" } });
+})();
+</script>
+```
+
+### Adding another app
+
+1. Write `src/apps/my_app.html` with the placeholder above. Keep it free of external scripts, styles, fonts and `@import`; build the DOM with `textContent` or `createElement`, never `innerHTML` with data.
+2. Write `src/apps/my_app.py`: read the HTML with `load_app_html`, register it with `apps.add_html_resource(uri, html, ...)`, and register the tool with `@apps.tool(resource_uri=uri, ...)` above `@tool_guard(...)`. Return a `CallToolResult` with both text and structured content. Import the shared registry with `from src.apps.registry import apps`; do not create another `Apps()`.
+3. Import the new module in `src/apps/__init__.py` (next to `whoami_card`), which runs before `src/server.py` builds `MCPServer`.
+4. If the app calls other tools, add `meta=APP_CALLABLE_META` to exactly those tools.
+5. Add tests (see `tests/test_apps.py`) and try the UI in the mock host (see "Debugging without a real client").
+
+**Registration order matters.** mcp 2.x fixes extensions when `MCPServer(...)` is constructed, and silently ignores tools or resources registered on `apps` afterwards. That is why apps live in their own package and `src/server.py` only imports it before building the server. To add an app, create a module that registers on the shared registry in `src/apps/registry.py`, import it in `src/apps/__init__.py`, and keep that import above `MCPServer(...)`.
+
+**Tool results always carry text and structured content.** The text is what the model and clients without UI read; the structured content is what the UI renders. Do not branch on whether the client supports apps: in stateless mode each request is a new session, so that check is not reliable.
+
+**Calling tools from an app.** The app calls tools through the host, so `tool_guard` and group checks apply automatically. Hosts reject the call unless the tool declares app visibility; use `meta=APP_CALLABLE_META` only on the tools an app needs (the example opts in `ping` only).
+
+**Turning apps off.** Set `ENABLE_MCP_APPS=false` to get the same tool list as before apps existed (no `whoami_card`, no `_meta.ui`, no `ui://` resources). The setting is read at startup.
+
+**Editing the UI.** The HTML and bridge are read once at import. After editing them, restart the server; `uvicorn --reload` watches only `.py` files.
+
+**Debugging without a real client.** Run the mock host from `template/`:
+
+```bash
+uv run python scripts/mcp_app_host/serve.py            # then open http://127.0.0.1:8765/
+MCP_API_KEY=your-key uv run python scripts/mcp_app_host/serve.py --mcp http://127.0.0.1:8080
+```
+
+Without a `mock` parameter it talks to a running MCP server (real mode). With one it needs no server: `?mock=bearer`, `apikey`, `denied` (the app tool fails) or `pingdenied` (only ping fails). Other parameters: `theme=dark`, `width=360`, `msgArray=1` (host accepts only an array of chat content), `msgFail=1` (host rejects every chat message). The page records every message in `window.__hostLog` and accepted chat messages in `window.__chatMessages`, so it can be driven by Playwright. It is a development aid only and binds to 127.0.0.1.
+
+**Getting the model to choose the app.** Tool descriptions alone do not reliably make a model prefer an app over plain tools. If your service needs "use the UI by default", combine three layers: server-level `MCPServer(instructions=...)` (set only when apps are enabled), an app tool description that starts with "DEFAULT way to ...", and server-side enforcement in the plain tool when it is called without going through the app. The template implements none of these because they are business decisions.
 
 ## Development Checks
 

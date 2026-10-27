@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who Am I</title>
+<style>
+  /* Fallback theme; host-provided variables (hostContext.styles.variables) override these. */
+  :root {
+    color-scheme: light dark;
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f4f5f7;
+    --color-text-primary: #1b1f24;
+    --color-text-secondary: #5b6470;
+    --color-text-danger: #b42318;
+    --color-text-success: #18794e;
+    --color-border-primary: #d5d9e0;
+    --color-ring-primary: #2f6fde;
+    --color-accent: #2f6fde;
+    --color-accent-text: #ffffff;
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+    --border-radius-md: 8px;
+    --border-radius-sm: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-background-primary: #1c1f24;
+      --color-background-secondary: #262a31;
+      --color-text-primary: #e8eaed;
+      --color-text-secondary: #9aa3af;
+      --color-text-danger: #f97066;
+      --color-text-success: #4ade80;
+      --color-border-primary: #3a4049;
+      --color-ring-primary: #6ea1ff;
+      --color-accent: #6ea1ff;
+      --color-accent-text: #0b1220;
+    }
+  }
+  :root[data-theme="dark"] {
+    --color-background-primary: #1c1f24;
+    --color-background-secondary: #262a31;
+    --color-text-primary: #e8eaed;
+    --color-text-secondary: #9aa3af;
+    --color-text-danger: #f97066;
+    --color-text-success: #4ade80;
+    --color-border-primary: #3a4049;
+    --color-ring-primary: #6ea1ff;
+    --color-accent: #6ea1ff;
+    --color-accent-text: #0b1220;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font: 13px/1.4 var(--font-sans);
+    color: var(--color-text-primary);
+    background: var(--color-background-primary);
+    padding: 12px;
+  }
+  .muted { color: var(--color-text-secondary); }
+  .error { color: var(--color-text-danger); overflow-wrap: anywhere; }
+  .ok { color: var(--color-text-success); }
+  h1 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 12px; }
+  dt { color: var(--color-text-secondary); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+  button {
+    font: inherit;
+    padding: 4px 10px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-secondary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  button.primary { background: var(--color-accent); color: var(--color-accent-text); border-color: var(--color-accent); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-ring-primary); outline-offset: 1px; }
+  .out { font: 12px var(--font-mono); overflow-wrap: anywhere; }
+  textarea {
+    width: 100%;
+    font: 12px var(--font-mono);
+    color: var(--color-text-primary);
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-sm);
+    padding: 6px;
+    resize: none;
+  }
+</style>
+</head>
+<body>
+<div id="app"><p class="muted">Connecting…</p></div>
+<script>
+(() => {
+  "use strict";
+
+  /*__APP_BRIDGE__*/
+
+  const app = document.getElementById("app");
+
+  // Tiny DOM helper: textContent only, never innerHTML with data.
+  function h(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === "class") el.className = v;
+      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else if (v !== false && v !== null && v !== undefined) el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of children.flat()) {
+      if (c === null || c === undefined || c === false) continue;
+      el.append(c.nodeType ? c : document.createTextNode(String(c)));
+    }
+    return el;
+  }
+
+  const state = {
+    info: null,        // structuredContent of the tool result
+    error: null,       // text of an error result
+    ping: null,        // { text } or { error }
+    pinging: false,
+    sent: false,
+    sendError: null,   // set when ui/message failed twice
+    stopped: false,
+  };
+
+  function summary() {
+    const info = state.info || {};
+    const user = info.user;
+    return user
+      ? "I am signed in as " + (user.name || "unknown") + " (" + (user.upn || "no UPN") + ") via Entra ID."
+      : "I am authenticated with an API key (no user token).";
+  }
+
+  async function doPing() {
+    state.pinging = true;
+    state.ping = null;
+    render();
+    try {
+      const text = await McpApp.callTool("ping", { message: "card" });
+      if (!state.stopped) state.ping = { text: typeof text === "string" ? text : JSON.stringify(text) };
+    } catch (e) {
+      if (!state.stopped) state.ping = { error: e.message || String(e) };
+    }
+    state.pinging = false;
+    if (!state.stopped) render();
+  }
+
+  // Send only on a user click, never automatically.
+  async function doSend() {
+    state.sendError = null;
+    try {
+      await McpApp.sendMessage(summary());
+      state.sent = true;
+    } catch (e) {
+      state.sendError = e.message || String(e);
+    }
+    if (state.stopped) return;
+    render();
+    if (state.sendError) {
+      const box = document.getElementById("fallback-text");
+      if (box) { box.focus(); box.select(); }
+    }
+  }
+
+  async function doCopy() {
+    const box = document.getElementById("fallback-text");
+    try {
+      await navigator.clipboard.writeText(summary());
+    } catch (_) {
+      // The sandbox may block the clipboard: leave the text selected for Ctrl+C.
+      if (box) { box.focus(); box.select(); }
+    }
+  }
+
+  function identityRows() {
+    const info = state.info;
+    const user = info.user;
+    const rows = [
+      h("dt", null, "Signed in as"),
+      h("dd", null, user ? (user.name || "unknown") + (user.upn ? " (" + user.upn + ")" : "") : "API key (no user)"),
+      h("dt", null, "Auth mode"),
+      h("dd", null, info.auth_type === "bearer" ? "Entra ID (bearer)" : "API key"),
+    ];
+    if (user && user.oid) rows.push(h("dt", null, "Object ID"), h("dd", { class: "out" }, user.oid));
+    return rows;
+  }
+
+  function view() {
+    if (state.error) return [h("p", { class: "error", role: "alert" }, state.error)];
+    if (!state.info) return [h("p", { class: "muted" }, "Waiting for the result…")];
+    return [
+      h("h1", null, "Who am I"),
+      h("dl", null, ...identityRows()),
+      h("div", { class: "row" },
+        h("button", { type: "button", onclick: doPing, disabled: state.pinging }, state.pinging ? "Pinging…" : "Ping server"),
+        state.ping && state.ping.text ? h("span", { class: "out ok" }, state.ping.text) : null,
+        state.ping && state.ping.error ? h("span", { class: "out error", role: "alert" }, state.ping.error) : null),
+      h("div", { class: "row" },
+        h("button", { type: "button", class: "primary", onclick: doSend }, "Send to chat"),
+        state.sent ? h("span", { class: "ok" }, "Sent to chat") : null),
+      state.sendError ? h("div", { class: "row" },
+        h("p", { class: "error", role: "alert" }, "Could not send to the chat: " + state.sendError + ". Copy the text instead:"),
+        h("textarea", { id: "fallback-text", readonly: true, rows: 2, "aria-label": "Message text" }, summary()),
+        h("button", { type: "button", onclick: doCopy }, "Copy")) : null,
+    ];
+  }
+
+  function render() {
+    app.replaceChildren(...view().filter(Boolean));
+    McpApp.reportSize();
+  }
+
+  McpApp.onNotification("ui/notifications/tool-result", (params) => {
+    if (params.isError) {
+      const text = (params.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+      state.error = text || "The card could not be loaded.";
+    } else {
+      state.info = params.structuredContent || null;
+      if (!state.info) state.error = "The tool returned no data.";
+    }
+    render();
+  });
+  McpApp.onNotification("ui/notifications/tool-cancelled", () => {
+    state.error = "The card was cancelled.";
+    render();
+  });
+  McpApp.onTeardown(() => { state.stopped = true; });
+
+  McpApp.connect({
+    appInfo: { name: "whoami-card", version: "1.0.0" },
+    onFail: () => {
+      app.replaceChildren(h("p", { class: "error" },
+        "This card must be opened from an MCP client that supports MCP Apps (for example Claude). Use the whoami tool instead."));
+    },
+  });
+})();
+</script>
+</body>
+</html>
