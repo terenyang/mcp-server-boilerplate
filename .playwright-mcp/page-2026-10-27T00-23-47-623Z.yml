@@ -1,0 +1,20 @@
+- generic [ref=f8e1]:
+  - generic [ref=f8e2]: mock=bearer · whoami_card · ui://boilerplate/whoami-card.html · 15161 chars
+  - iframe [active] [ref=f8e4]:
+    - generic [ref=f9e2]:
+      - heading "Who am I" [level=1] [ref=f9e15]
+      - generic [ref=f9e16]:
+        - term [ref=f9e17]: Signed in as
+        - definition [ref=f9e18]: Jane Doe (jane@corp.com)
+        - term [ref=f9e19]: Auth mode
+        - definition [ref=f9e20]: Entra ID (bearer)
+        - term [ref=f9e21]: Object ID
+        - definition [ref=f9e22]: 00000000-0000-0000-0000-000000000001
+      - button "Ping server" [ref=f9e24] [cursor=pointer]
+      - button "Send to chat" [ref=f9e26] [cursor=pointer]
+      - generic [ref=f9e27]:
+        - alert [ref=f9e28]: "Could not send to the chat: Message rejected (simulated). Copy the text instead:"
+        - textbox "Message text" [active] [ref=f9e29]: I am signed in as Jane Doe (jane@corp.com) via Entra ID.
+        - button "Copy" [ref=f9e30] [cursor=pointer]
+  - button "Teardown" [ref=f8e5]
+  - generic [ref=f8e6]: "view->host {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ui/initialize\",\"params\":{\"protocolVersion\":\"2026-01-26\",\"appInfo\":{\"name\":\"whoami-card\",\"version\":\"1.0.0\"},\"appCapabilities\":{}}} host->view {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2026-01-26\",\"hostInfo\":{\"name\":\"mock-host\",\"version\":\"0\"},\"hostCapabilities\":{\"openLinks\":{},\"serverTools\":{}},\"hostContext\":{\"theme\":\"light\",\"displayMode\":\"inline\",\"locale\":\"en-US\"}}} view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/initialized\",\"params\":{}} host->view {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/tool-input\",\"params\":{\"arguments\":{}}} host->view {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/tool-result\",\"params\":{\"content\":[{\"type\":\"text\",\"text\":\"Signed in as Jane Doe (jane@corp.com) via Entra ID (bearer token).\"}],\"structuredContent\":{\"auth_type\":\"bearer\",\"user\":{\"oid\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"Jane Doe\",\"upn\":\"jane@corp view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/size-changed\",\"params\":{\"width\":640,\"height\":190}} view->host {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ui/message\",\"params\":{\"role\":\"user\",\"content\":{\"type\":\"text\",\"text\":\"I am signed in as Jane Doe (jane@corp.com) via Entra ID.\"}}} host->view {\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32000,\"message\":\"Message rejected (simulated)\"}} view->host {\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ui/message\",\"params\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"I am signed in as Jane Doe (jane@corp.com) via Entra ID.\"}]}} host->view {\"jsonrpc\":\"2.0\",\"id\":3,\"error\":{\"code\":-32000,\"message\":\"Message rejected (simulated)\"}} view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/size-changed\",\"params\":{\"width\":625,\"height\":328}} view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/size-changed\",\"params\":{\"width\":640,\"height\":328}}"

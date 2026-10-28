@@ -1,0 +1,16 @@
+- generic [ref=e1]:
+  - generic [ref=e6]: real server · whoami_card · ui://boilerplate/whoami-card.html · 15161 chars
+  - iframe [active] [ref=e3]:
+    - generic [ref=f1e2]:
+      - heading "Who am I" [level=1] [ref=f1e13]
+      - generic [ref=f1e14]:
+        - term [ref=f1e15]: Signed in as
+        - definition [ref=f1e16]: API key (no user)
+        - term [ref=f1e17]: Auth mode
+        - definition [ref=f1e18]: API key
+      - generic [ref=f1e19]:
+        - button "Ping server" [ref=f1e20] [cursor=pointer]
+        - generic [ref=f1e21]: "pong: 'card' at 2026-10-27T00:22:24.482084+00:00"
+      - button "Send to chat" [ref=f1e23] [cursor=pointer]
+  - button "Teardown" [ref=e4]
+  - generic [ref=e5]: "view->host {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ui/initialize\",\"params\":{\"protocolVersion\":\"2026-01-26\",\"appInfo\":{\"name\":\"whoami-card\",\"version\":\"1.0.0\"},\"appCapabilities\":{}}} host->view {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2026-01-26\",\"hostInfo\":{\"name\":\"mock-host\",\"version\":\"0\"},\"hostCapabilities\":{\"openLinks\":{},\"serverTools\":{}},\"hostContext\":{\"theme\":\"light\",\"displayMode\":\"inline\",\"locale\":\"en-US\"}}} view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/initialized\",\"params\":{}} host->view {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/tool-input\",\"params\":{\"arguments\":{}}} host->view {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/tool-result\",\"params\":{\"content\":[{\"text\":\"Authenticated via API key — no user token is present.\",\"type\":\"text\"}],\"isError\":false,\"structuredContent\":{\"auth_type\":\"api_key\",\"message\":\"Authenticated via API key — no JWT token available.\",\"user\":null}}} view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/size-changed\",\"params\":{\"width\":640,\"height\":167}} view->host {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"ping\",\"arguments\":{\"message\":\"card\"}}} host->view {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"content\":[{\"text\":\"pong: 'card' at 2026-10-27T00:22:24.482084+00:00\",\"type\":\"text\"}],\"isError\":false,\"structuredContent\":{\"result\":\"pong: 'card' at 2026-10-27T00:22:24.482084+00:00\"}}}"

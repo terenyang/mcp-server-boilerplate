@@ -33,10 +33,17 @@ router = APIRouter(tags=["oauth"])
 _ENTRA_BASE = f"https://login.microsoftonline.com/{config.AZURE_TENANT_ID}"
 _ENTRA_AUTHORIZE = f"{_ENTRA_BASE}/oauth2/v2.0/authorize"
 _ENTRA_TOKEN = f"{_ENTRA_BASE}/oauth2/v2.0/token"
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 # In-memory DCR store — replace with Redis/DB for multi-instance deployments
 _registered_clients: dict[str, dict] = {}
 
+def _has_loopback(redirect_uris: list[str]) -> bool:
+    for uri in redirect_uris:
+        host = urllib.parse.urlparse(uri).hostname
+        if host in _LOOPBACK_HOSTS:
+            return True
+    return False
 
 def _resource_uri() -> str:
     return f"{config.BASE_URL.rstrip('/')}/mcp"
@@ -49,11 +56,15 @@ async def dynamic_client_registration(request: Request):
 
     client_id = f"dynamic-{secrets.token_urlsafe(16)}"
     client_secret = secrets.token_urlsafe(32)
+    redirect_uris = body.get("redirect_uris", [])
 
     _registered_clients[client_id] = {
         "client_secret": client_secret,
         "redirect_uris": body.get("redirect_uris", []),
         "client_name": body.get("client_name", "Unknown Client"),
+        "grant_types": body.get("grant_types", ["authorization_code"]),
+        "redirect_uris": redirect_uris,
+        "public": _has_loopback(redirect_uris),
     }
 
     logger.info(
@@ -135,11 +146,13 @@ async def token_proxy(request: Request):
         data.get("grant_type"),
     )
 
+    reg = _registered_clients.get(dynamic_client_id)
+    is_public = reg["public"] if reg else _has_loopback([data.get("redirect_uri", "")]) 
     data["client_id"] = config.AZURE_CLIENT_ID
     data.pop("resource", None)      # Entra v2 rejects RFC 8707 'resource' parameter
-    if config.AZURE_CLIENT_SECRET:
-        # Replace any incoming secret with the real one.
-        data.pop("client_secret", None)
+    data.pop("client_secret", None)
+    if config.AZURE_CLIENT_SECRET and not is_public:
+        # Replace any incoming secret with the real one. 
         data["client_secret"] = config.AZURE_CLIENT_SECRET
     # else: leave any incoming client_secret as-is so PKCE or client-provided
     # secrets pass through when AZURE_CLIENT_SECRET is not configured.

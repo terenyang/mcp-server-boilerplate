@@ -1,0 +1,18 @@
+- generic [ref=f6e1]:
+  - generic [ref=f6e2]: mock=bearer · whoami_card · ui://boilerplate/whoami-card.html · 15161 chars
+  - iframe [active] [ref=f6e4]:
+    - generic [ref=f7e2]:
+      - heading "Who am I" [level=1] [ref=f7e15]
+      - generic [ref=f7e16]:
+        - term [ref=f7e17]: Signed in as
+        - definition [ref=f7e18]: Jane Doe (jane@corp.com)
+        - term [ref=f7e19]: Auth mode
+        - definition [ref=f7e20]: Entra ID (bearer)
+        - term [ref=f7e21]: Object ID
+        - definition [ref=f7e22]: 00000000-0000-0000-0000-000000000001
+      - button "Ping server" [ref=f7e24] [cursor=pointer]
+      - generic [ref=f7e25]:
+        - button "Send to chat" [ref=f7e26] [cursor=pointer]
+        - generic [ref=f7e27]: Sent to chat
+  - button "Teardown" [ref=f6e5]
+  - generic [ref=f6e6]: "view->host {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ui/initialize\",\"params\":{\"protocolVersion\":\"2026-01-26\",\"appInfo\":{\"name\":\"whoami-card\",\"version\":\"1.0.0\"},\"appCapabilities\":{}}} host->view {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2026-01-26\",\"hostInfo\":{\"name\":\"mock-host\",\"version\":\"0\"},\"hostCapabilities\":{\"openLinks\":{},\"serverTools\":{}},\"hostContext\":{\"theme\":\"light\",\"displayMode\":\"inline\",\"locale\":\"en-US\"}}} view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/initialized\",\"params\":{}} host->view {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/tool-input\",\"params\":{\"arguments\":{}}} host->view {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/tool-result\",\"params\":{\"content\":[{\"type\":\"text\",\"text\":\"Signed in as Jane Doe (jane@corp.com) via Entra ID (bearer token).\"}],\"structuredContent\":{\"auth_type\":\"bearer\",\"user\":{\"oid\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"Jane Doe\",\"upn\":\"jane@corp view->host {\"jsonrpc\":\"2.0\",\"method\":\"ui/notifications/size-changed\",\"params\":{\"width\":640,\"height\":190}} view->host {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ui/message\",\"params\":{\"role\":\"user\",\"content\":{\"type\":\"text\",\"text\":\"I am signed in as Jane Doe (jane@corp.com) via Entra ID.\"}}} host->view {\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32000,\"message\":\"Invalid message format\"}} view->host {\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ui/message\",\"params\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"I am signed in as Jane Doe (jane@corp.com) via Entra ID.\"}]}} host->view {\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{}}"
